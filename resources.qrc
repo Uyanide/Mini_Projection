@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>assets/default.png</file>
+        <file>mainstyle.qss</file>
+    </qresource>
+</RCC>

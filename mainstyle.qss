@@ -1,0 +1,54 @@
+QMainWindow {
+    background-color: #0e091e;
+}
+
+QPushButton {
+    font: 15px 'Consolas';
+    background-color: #372572;
+    border: 2px solid #6a46d9;
+    color: #dfdfdf;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+QPushButton:disabled {
+    background-color: #160d35;
+    color: #a0a0a0;
+}
+
+QPushButton:hover {
+    background-color: #4f33a1;
+}
+
+QPushButton:pressed {
+    background-color: #6a46d9;
+}
+
+QLabel {
+    font: 15px 'Consolas';
+    color: #dfdfdf;
+}
+
+QLineEdit {
+    font: 12px 'Consolas';
+    border: 2px solid #6a46d9;
+    background: #180f33;
+    border-radius: 5px;
+}
+
+QLineEdit:disabled {
+    background: #160d35;
+    color: #a0a0a0;
+}
+
+QTextEdit {
+    font: 12px 'Consolas';
+    border: 2px solid #6a46d9;
+    background: #180f33;
+    border-radius: 5px;
+}
+
+#label_img {
+    border: 2px solid #6a46d9;
+    border-radius: 5px;
+}
