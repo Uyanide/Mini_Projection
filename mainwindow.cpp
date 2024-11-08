@@ -22,6 +22,10 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
+    if (serverState != ServerState::IDLE) {
+        onPushButtonMinicapStopClicked();
+    }
+
     delete ui;
 }
 
@@ -112,7 +116,7 @@ void MainWindow::onPushButtonMinicapStartClicked() {
             throw std::runtime_error("Error on starting Minicap server.");
         }
     } catch (const std::exception& e) {
-        appendLog(COLOR_LOG("Error on starting Minicap: <b>" + QString(e.what()) + "</b>", LogColor::RED));
+        appendLog(COLOR_LOG("Error on initializing Minicap: <b>" + QString(e.what()) + "</b>", LogColor::RED));
         ui->pushButton_minicap_start->setEnabled(true);
         setEnableInputFields(true);
         serverState = ServerState::IDLE;
@@ -209,7 +213,7 @@ int MainWindow::startMinicapServer() {
                                              .arg(diviceHeight));
     if (!minicapServer.waitForStarted()) {
         appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer.errorString() + "</b>", LogColor::RED));
-        return minicapServer.exitCode();
+        return 1;
     }
 
     connect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
@@ -219,30 +223,60 @@ int MainWindow::startMinicapServer() {
 }
 
 void MainWindow::onMinicapServerReadyReadStandardError() {
-    // QFile file(MINICAP_SERVER_LOG);
-    // if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
-    //     file.write(minicapServer.readAllStandardError());
-    //     file.close();
-    // }
-
     QString output = minicapServer.readAllStandardError();
+    QFile file(MINICAP_SERVER_LOG);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        file.write(output.toUtf8());
+        file.close();
+    }
     appendLog(COLOR_LOG("Minicap: <b>" + output + "</b>", LogColor::GRAY));
     if (serverState == ServerState::STARTING) {
         if (output.contains("Publishing virtual display")) {
             serverState = ServerState::STARTED;
-            ui->pushButton_minicap_stop->setEnabled(true);
-            ui->pushButton_start->setEnabled(true);
             appendLog(COLOR_LOG("Minicap server started...", LogColor::GREEN));
             disconnect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
-            appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
-            if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "tcp:" + QString::number(forwardPort) << "localabstract:minicap")) {
-                appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
-                onPushButtonMinicapStopClicked();
-            } else {
-                appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
-            }
+            initConnection();
         }
     }
+}
+
+void MainWindow::initConnection() {
+    appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
+    this->forwardPort = ui->lineEdit_port->text().toUShort();
+    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "tcp:" + QString::number(forwardPort) << "localabstract:minicap")) {
+        appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
+        onPushButtonMinicapStopClicked();
+        return;
+    } else {
+        appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
+    }
+    if (!pSocket) {
+        pSocket = new MinicapSocket();
+        pSocket->setPort(forwardPort);
+        connect(pSocket, &MinicapSocket::connected, this, &MainWindow::onSocketConnected);
+        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
+        connect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
+        pSocket->start();
+    }
+}
+
+void MainWindow::onSocketConnected() {
+    appendLog(COLOR_LOG("Connected to Minicap server.", LogColor::GREEN));
+    ui->pushButton_start->setEnabled(true);
+    ui->pushButton_minicap_stop->setEnabled(true);
+}
+
+void MainWindow::onSocketFrameReceived(QByteArray frame) {
+    if (screenImage.loadFromData(frame)) {
+        ui->label_img->setPixmap(QPixmap::fromImage(screenImage).scaled(ui->label_img->size(), Qt::KeepAspectRatio));
+    } else {
+        appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
+    }
+}
+
+void MainWindow::onSocketOnError(QString error) {
+    appendLog(COLOR_LOG("Error on Minicap socket: <b>" + error + "</b>", LogColor::RED));
+    onPushButtonMinicapStopClicked();
 }
 
 void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
@@ -260,25 +294,37 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
         default:
             break;
     }
+    if (pSocket) {
+        pSocket->stop();
+        delete pSocket;
+        pSocket = nullptr;
+    }
+    ui->pushButton_minicap_start->setEnabled(true);
+    setEnableInputFields(true);
     disconnect(&minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
     serverState = ServerState::IDLE;
 }
 
 void MainWindow::onPushButtonMinicapStopClicked() {
     if (gameState != GameState::INIT) {
-        appendLog(COLOR_LOG("Game is running, please stop it first...", LogColor::RED));
+        appendLog(COLOR_LOG("Game is running, please stop it first.", LogColor::RED));
         return;
     }
 
     if (serverState != ServerState::STARTED) {
-        appendLog(COLOR_LOG("Minicap server is not running...", LogColor::RED));
         return;
     }
 
+    appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
     ui->pushButton_minicap_stop->setEnabled(false);
     ui->pushButton_start->setEnabled(false);
-    appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
+    ui->label_img->clear();
+    if (pSocket) {
+        pSocket->stop();
+        delete pSocket;
+        pSocket = nullptr;
+    }
 
     if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "shell" << "pkill" << "minicap")) {
         appendLog(COLOR_LOG("Error on stopping Minicap server: <b>" + QString::number(minicapServer.error()) + "</b>", LogColor::RED));

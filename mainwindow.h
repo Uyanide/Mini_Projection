@@ -5,6 +5,8 @@
 #include <QProcess>
 #include <QString>
 
+#include "minicapsocket.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -52,6 +54,8 @@ class MainWindow : public QMainWindow {
     int pushMinicapFiles(const QString &ABI, const QString &SDK);
     int addExecutePermission();
     int startMinicapServer();
+    void initConnection();
+
     void setEnableInputFields(bool enable);
 
    private slots:
@@ -67,6 +71,10 @@ class MainWindow : public QMainWindow {
     static QString COLOR_LOG(const QString &text, LogColor color);
     void appendLog(const QString &log);
 
+    void onSocketFrameReceived(QByteArray frame);
+    void onSocketOnError(QString error);
+    void onSocketConnected();
+
    private:
     Ui::MainWindow *ui;
     QString adbPath;
@@ -76,6 +84,9 @@ class MainWindow : public QMainWindow {
     QProcess minicapServer = QProcess(this);
     ServerState serverState = ServerState::IDLE;
     GameState gameState = GameState::INIT;
+
+    MinicapSocket *pSocket = nullptr;
+    QImage screenImage;
 
     static const QString MINICAP_PATH;
     static const QString MINICAP_DEVICE_PATH;
