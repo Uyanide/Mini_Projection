@@ -224,11 +224,11 @@ int MainWindow::startMinicapServer() {
 
 void MainWindow::onMinicapServerReadyReadStandardError() {
     QString output = minicapServer.readAllStandardError();
-    QFile file(MINICAP_SERVER_LOG);
-    if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
-        file.write(output.toUtf8());
-        file.close();
-    }
+    // QFile file(MINICAP_SERVER_LOG);
+    // if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
+    //     file.write(output.toUtf8());
+    //     file.close();
+    // }
     appendLog(COLOR_LOG("Minicap: <b>" + output + "</b>", LogColor::GRAY));
     if (serverState == ServerState::STARTING) {
         if (output.contains("Publishing virtual display")) {
@@ -306,7 +306,7 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
 }
 
 void MainWindow::onPushButtonMinicapStopClicked() {
-    if (gameState != GameState::INIT) {
+    if (pGameOperation) {
         appendLog(COLOR_LOG("Game is running, please stop it first.", LogColor::RED));
         return;
     }
@@ -344,11 +344,63 @@ void MainWindow::onPushButtonMinicapStopClicked() {
 }
 
 void MainWindow::onPushButtonStartClicked() {
-    return;
+    if (serverState != ServerState::STARTED) {
+        appendLog(COLOR_LOG("Minicap server is not running.", LogColor::RED));
+        return;
+    }
+    if (pGameOperation) {
+        appendLog(COLOR_LOG("Game is already running.", LogColor::RED));
+        return;
+    }
+
+    appendLog(COLOR_LOG("Starting game...", LogColor::BLUE));
+    pGameOperation = new GameOperation();
+
+    connect(pGameOperation, &GameOperation::appendLog, this, &MainWindow::onGameLog);
+    connect(pGameOperation, &GameOperation::failed, this, &MainWindow::onGameFailed);
+    connect(pGameOperation, &GameOperation::tap, this, &MainWindow::onGameTap);
+    connect(pGameOperation, &GameOperation::requestImage, this, &MainWindow::onGameRequestImage);
+    connect(this, &MainWindow::sendImage, pGameOperation, &GameOperation::handleImage);
+
+    pGameOperation->start();
+
+    ui->pushButton_start->setEnabled(false);
+    ui->pushButton_stop->setEnabled(true);
+}
+
+void MainWindow::onGameLog(QString log, GameOperation::LogType type) {
+    appendLog(COLOR_LOG(log, static_cast<LogColor>(type)));
+}
+
+void MainWindow::onGameFailed() {
+    appendLog(COLOR_LOG("Game failed.", LogColor::RED));
+    onPushButtonStopClicked();
+}
+
+void MainWindow::onGameTap(int x, int y) {
+    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "shell" << "input" << "tap" << QString::number(x) << QString::number(y))) {
+        appendLog(COLOR_LOG("Error on tapping: <b>" + QString::number(x) + ", " + QString::number(y) + "</b>", LogColor::RED));
+    }
+}
+
+void MainWindow::onGameRequestImage() {
+    if (!screenImage.isNull()) {
+        emit sendImage(screenImage);
+    }
 }
 
 void MainWindow::onPushButtonStopClicked() {
-    return;
+    if (pGameOperation) {
+        appendLog(COLOR_LOG("Stopping game...", LogColor::BLUE));
+        pGameOperation->terminate();
+        pGameOperation->wait();
+        delete pGameOperation;
+        pGameOperation = nullptr;
+        ui->pushButton_start->setEnabled(true);
+        ui->pushButton_stop->setEnabled(false);
+    } else {
+        appendLog(COLOR_LOG("Game is not running.", LogColor::RED));
+    }
 }
 
 QString MainWindow::COLOR_LOG(const QString& text, LogColor color) {

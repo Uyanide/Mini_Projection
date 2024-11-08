@@ -81,7 +81,7 @@ void MinicapSocket::onReadyRead() {
 
             quint32 size;
             stream >> size;
-            qDebug() << "Frame size: " << size;
+            // qDebug() << "Frame size: " << size;
 
             if (buffer.size() < size + 4) {
                 return;

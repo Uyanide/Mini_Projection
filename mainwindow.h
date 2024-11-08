@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QString>
 
+#include "gameoperation.h"
 #include "minicapsocket.h"
 
 QT_BEGIN_NAMESPACE
@@ -24,21 +25,12 @@ class MainWindow : public QMainWindow {
         STOPPING,
     };
 
-    enum GameState {
-        INIT,
-        PENDING,
-        PROCESSING,
-        SUCCESS,
-        MIDDLE,
-        FAIL,
-    };
-
     enum LogColor {
-        RED = 0,
+        GRAY = 0,
+        YELLOW,
+        RED,
         GREEN,
         BLUE,
-        YELLOW,
-        GRAY,
     };
 
    public:
@@ -75,6 +67,14 @@ class MainWindow : public QMainWindow {
     void onSocketOnError(QString error);
     void onSocketConnected();
 
+    void onGameRequestImage();
+    void onGameLog(QString log, GameOperation::LogType type);
+    void onGameFailed();
+    void onGameTap(int x, int y);
+
+   signals:
+    void sendImage(QImage image);
+
    private:
     Ui::MainWindow *ui;
     QString adbPath;
@@ -83,13 +83,15 @@ class MainWindow : public QMainWindow {
 
     QProcess minicapServer = QProcess(this);
     ServerState serverState = ServerState::IDLE;
-    GameState gameState = GameState::INIT;
 
     MinicapSocket *pSocket = nullptr;
     QImage screenImage;
+
+    GameOperation *pGameOperation = nullptr;
 
     static const QString MINICAP_PATH;
     static const QString MINICAP_DEVICE_PATH;
     static const QString MINICAP_SERVER_LOG;
 };
+
 #endif  // MAINWINDOW_H
