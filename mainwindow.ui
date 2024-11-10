@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1200</width>
+    <height>900</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -18,54 +18,39 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>800</width>
-    <height>600</height>
+    <width>1200</width>
+    <height>900</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>800</width>
-    <height>600</height>
+    <width>1200</width>
+    <height>900</height>
    </size>
   </property>
   <property name="windowTitle">
-   <string>狂欢烟火大师速成</string>
+   <string>Minicap GUI</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
     <item row="0" column="0">
      <widget class="QLabel" name="label_img">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
         <horstretch>0</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
-      <property name="minimumSize">
-       <size>
-        <width>234</width>
-        <height>520</height>
-       </size>
-      </property>
-      <property name="maximumSize">
-       <size>
-        <width>234</width>
-        <height>520</height>
-       </size>
-      </property>
       <property name="text">
        <string/>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
     </item>
     <item row="0" column="1">
      <widget class="QTextEdit" name="textEdit_log">
-      <property name="maximumSize">
-       <size>
-        <width>300</width>
-        <height>520</height>
-       </size>
-      </property>
       <property name="textInteractionFlags">
        <set>Qt::TextInteractionFlag::NoTextInteraction</set>
       </property>
@@ -73,6 +58,12 @@
     </item>
     <item row="0" column="2">
      <widget class="QWidget" name="widget" native="true">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <layout class="QVBoxLayout" name="verticalLayout">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout">
@@ -168,7 +159,7 @@
             </size>
            </property>
            <property name="text">
-            <string>c826746c</string>
+            <string>e330f954</string>
            </property>
           </widget>
          </item>
@@ -240,7 +231,7 @@
             </size>
            </property>
            <property name="text">
-            <string>1080</string>
+            <string>1200</string>
            </property>
           </widget>
          </item>
@@ -272,7 +263,7 @@
             </size>
            </property>
            <property name="text">
-            <string>2400</string>
+            <string>2670</string>
            </property>
           </widget>
          </item>
@@ -308,7 +299,7 @@
             </size>
            </property>
            <property name="text">
-            <string>1080</string>
+            <string>600</string>
            </property>
           </widget>
          </item>
@@ -340,7 +331,7 @@
             </size>
            </property>
            <property name="text">
-            <string>2400</string>
+            <string>1335</string>
            </property>
           </widget>
          </item>
@@ -360,20 +351,6 @@
          </property>
         </widget>
        </item>
-       <item>
-        <widget class="QPushButton" name="pushButton_start">
-         <property name="text">
-          <string>Start Play</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="pushButton_stop">
-         <property name="text">
-          <string>Stop Play</string>
-         </property>
-        </widget>
-       </item>
       </layout>
      </widget>
     </item>
@@ -384,7 +361,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1200</width>
      <height>17</height>
     </rect>
    </property>

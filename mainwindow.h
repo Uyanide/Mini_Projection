@@ -5,7 +5,6 @@
 #include <QProcess>
 #include <QString>
 
-#include "gameoperation.h"
 #include "minicapsocket.h"
 
 QT_BEGIN_NAMESPACE
@@ -54,8 +53,6 @@ class MainWindow : public QMainWindow {
     void onPushButtonAdbClicked();
     void onPushButtonMinicapStartClicked();
     void onPushButtonMinicapStopClicked();
-    void onPushButtonStartClicked();
-    void onPushButtonStopClicked();
 
     void onMinicapServerReadyReadStandardError();
     void onMinicapServerFinished(int, QProcess::ExitStatus);
@@ -66,14 +63,6 @@ class MainWindow : public QMainWindow {
     void onSocketFrameReceived(QByteArray frame);
     void onSocketOnError(QString error);
     void onSocketConnected();
-
-    void onGameRequestImage();
-    void onGameLog(QString log, GameOperation::LogType type);
-    void onGameFailed();
-    void onGameTap(int x, int y);
-
-   signals:
-    void sendImage(QImage image);
 
    private:
     Ui::MainWindow *ui;
@@ -86,8 +75,6 @@ class MainWindow : public QMainWindow {
 
     MinicapSocket *pSocket = nullptr;
     QImage screenImage;
-
-    GameOperation *pGameOperation = nullptr;
 
     static const QString MINICAP_PATH;
     static const QString MINICAP_DEVICE_PATH;

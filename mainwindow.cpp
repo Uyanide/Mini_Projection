@@ -38,8 +38,6 @@ void MainWindow::applyQSS() {
 
 void MainWindow::initUI() {
     ui->pushButton_minicap_stop->setEnabled(false);
-    ui->pushButton_start->setEnabled(false);
-    ui->pushButton_stop->setEnabled(false);
 
     adbPath = ui->lineEdit_adb->text();
     deviceName = ui->lineEdit_device->text();
@@ -50,8 +48,6 @@ void MainWindow::initSlots() {
     connect(ui->pushButton_adb, &QPushButton::clicked, this, &MainWindow::onPushButtonAdbClicked);
     connect(ui->pushButton_minicap_start, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStartClicked);
     connect(ui->pushButton_minicap_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStopClicked);
-    connect(ui->pushButton_start, &QPushButton::clicked, this, &MainWindow::onPushButtonStartClicked);
-    connect(ui->pushButton_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonStopClicked);
 }
 
 void MainWindow::onPushButtonAdbClicked() {
@@ -74,6 +70,8 @@ void MainWindow::onPushButtonMinicapStartClicked() {
         serverState = ServerState::PREPARING;
         ui->pushButton_minicap_start->setEnabled(false);
         setEnableInputFields(false);
+
+        deviceName = ui->lineEdit_device->text();
 
         appendLog(COLOR_LOG("Starting Minicap...", LogColor::BLUE));
 
@@ -207,10 +205,11 @@ int MainWindow::startMinicapServer() {
                                       << "LD_LIBRARY_PATH=" + MINICAP_DEVICE_PATH + " " + MINICAP_DEVICE_PATH + "/minicap"
                                       << "-P"
                                       << QString("%1x%2@%3x%4/0")
+                                             .arg(diviceWidth)
+                                             .arg(diviceHeight)
                                              .arg(displayWidth)
                                              .arg(displayHeight)
-                                             .arg(diviceWidth)
-                                             .arg(diviceHeight));
+                                      << "-S");
     if (!minicapServer.waitForStarted()) {
         appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer.errorString() + "</b>", LogColor::RED));
         return 1;
@@ -254,7 +253,7 @@ void MainWindow::initConnection() {
         pSocket = new MinicapSocket();
         pSocket->setPort(forwardPort);
         connect(pSocket, &MinicapSocket::connected, this, &MainWindow::onSocketConnected);
-        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
+        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::AutoConnection);
         connect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
         pSocket->start();
     }
@@ -262,13 +261,16 @@ void MainWindow::initConnection() {
 
 void MainWindow::onSocketConnected() {
     appendLog(COLOR_LOG("Connected to Minicap server.", LogColor::GREEN));
-    ui->pushButton_start->setEnabled(true);
     ui->pushButton_minicap_stop->setEnabled(true);
 }
 
 void MainWindow::onSocketFrameReceived(QByteArray frame) {
+    static const qreal DPR = devicePixelRatio();
     if (screenImage.loadFromData(frame)) {
-        ui->label_img->setPixmap(QPixmap::fromImage(screenImage).scaled(ui->label_img->size(), Qt::KeepAspectRatio));
+        QPixmap pixmap = QPixmap::fromImage(screenImage);
+        pixmap.setDevicePixelRatio(DPR);
+        pixmap = pixmap.scaled(ui->label_img->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        ui->label_img->setPixmap(pixmap);
     } else {
         appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
     }
@@ -306,11 +308,6 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
 }
 
 void MainWindow::onPushButtonMinicapStopClicked() {
-    if (pGameOperation) {
-        appendLog(COLOR_LOG("Game is running, please stop it first.", LogColor::RED));
-        return;
-    }
-
     if (serverState != ServerState::STARTED) {
         return;
     }
@@ -318,7 +315,6 @@ void MainWindow::onPushButtonMinicapStopClicked() {
     appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
     ui->pushButton_minicap_stop->setEnabled(false);
-    ui->pushButton_start->setEnabled(false);
     ui->label_img->clear();
     if (pSocket) {
         pSocket->stop();
@@ -341,66 +337,6 @@ void MainWindow::onPushButtonMinicapStopClicked() {
     serverState = ServerState::IDLE;
     ui->pushButton_minicap_start->setEnabled(true);
     setEnableInputFields(true);
-}
-
-void MainWindow::onPushButtonStartClicked() {
-    if (serverState != ServerState::STARTED) {
-        appendLog(COLOR_LOG("Minicap server is not running.", LogColor::RED));
-        return;
-    }
-    if (pGameOperation) {
-        appendLog(COLOR_LOG("Game is already running.", LogColor::RED));
-        return;
-    }
-
-    appendLog(COLOR_LOG("Starting game...", LogColor::BLUE));
-    pGameOperation = new GameOperation();
-
-    connect(pGameOperation, &GameOperation::appendLog, this, &MainWindow::onGameLog);
-    connect(pGameOperation, &GameOperation::failed, this, &MainWindow::onGameFailed);
-    connect(pGameOperation, &GameOperation::tap, this, &MainWindow::onGameTap);
-    connect(pGameOperation, &GameOperation::requestImage, this, &MainWindow::onGameRequestImage);
-    connect(this, &MainWindow::sendImage, pGameOperation, &GameOperation::handleImage);
-
-    pGameOperation->start();
-
-    ui->pushButton_start->setEnabled(false);
-    ui->pushButton_stop->setEnabled(true);
-}
-
-void MainWindow::onGameLog(QString log, GameOperation::LogType type) {
-    appendLog(COLOR_LOG(log, static_cast<LogColor>(type)));
-}
-
-void MainWindow::onGameFailed() {
-    appendLog(COLOR_LOG("Game failed.", LogColor::RED));
-    onPushButtonStopClicked();
-}
-
-void MainWindow::onGameTap(int x, int y) {
-    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "shell" << "input" << "tap" << QString::number(x) << QString::number(y))) {
-        appendLog(COLOR_LOG("Error on tapping: <b>" + QString::number(x) + ", " + QString::number(y) + "</b>", LogColor::RED));
-    }
-}
-
-void MainWindow::onGameRequestImage() {
-    if (!screenImage.isNull()) {
-        emit sendImage(screenImage);
-    }
-}
-
-void MainWindow::onPushButtonStopClicked() {
-    if (pGameOperation) {
-        appendLog(COLOR_LOG("Stopping game...", LogColor::BLUE));
-        pGameOperation->terminate();
-        pGameOperation->wait();
-        delete pGameOperation;
-        pGameOperation = nullptr;
-        ui->pushButton_start->setEnabled(true);
-        ui->pushButton_stop->setEnabled(false);
-    } else {
-        appendLog(COLOR_LOG("Game is not running.", LogColor::RED));
-    }
 }
 
 QString MainWindow::COLOR_LOG(const QString& text, LogColor color) {
