@@ -5,6 +5,7 @@
 #include <QProcess>
 #include <QString>
 
+#include "displaywindow.h"
 #include "minicapsocket.h"
 
 QT_BEGIN_NAMESPACE
@@ -46,6 +47,7 @@ class MainWindow : public QMainWindow {
     int addExecutePermission();
     int startMinicapServer();
     void initConnection();
+    void initWindow();
 
     void setEnableInputFields(bool enable);
 
@@ -75,6 +77,8 @@ class MainWindow : public QMainWindow {
 
     MinicapSocket *pSocket = nullptr;
     QImage screenImage;
+
+    DisplayWindow *displayWindow = nullptr;
 
     static const QString MINICAP_PATH;
     static const QString MINICAP_DEVICE_PATH;

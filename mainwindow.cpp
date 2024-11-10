@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <stdexcept>
 
+#include "./ui_displaywindow.h"
 #include "./ui_mainwindow.h"
 
 const QString MainWindow::MINICAP_PATH = "C:/Users/cyani/code/minicap";
@@ -235,6 +236,7 @@ void MainWindow::onMinicapServerReadyReadStandardError() {
             appendLog(COLOR_LOG("Minicap server started...", LogColor::GREEN));
             disconnect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
             initConnection();
+            initWindow();
         }
     }
 }
@@ -259,6 +261,14 @@ void MainWindow::initConnection() {
     }
 }
 
+void MainWindow::initWindow() {
+    if (!displayWindow) {
+        displayWindow = new DisplayWindow();
+        displayWindow->show();
+        connect(displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonMinicapStopClicked);
+    }
+}
+
 void MainWindow::onSocketConnected() {
     appendLog(COLOR_LOG("Connected to Minicap server.", LogColor::GREEN));
     ui->pushButton_minicap_stop->setEnabled(true);
@@ -269,8 +279,8 @@ void MainWindow::onSocketFrameReceived(QByteArray frame) {
     if (screenImage.loadFromData(frame)) {
         QPixmap pixmap = QPixmap::fromImage(screenImage);
         pixmap.setDevicePixelRatio(DPR);
-        pixmap = pixmap.scaled(ui->label_img->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        ui->label_img->setPixmap(pixmap);
+        pixmap = pixmap.scaled(displayWindow->ui->label_screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        displayWindow->ui->label_screen->setPixmap(pixmap);
     } else {
         appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
     }
@@ -315,7 +325,7 @@ void MainWindow::onPushButtonMinicapStopClicked() {
     appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
     ui->pushButton_minicap_stop->setEnabled(false);
-    ui->label_img->clear();
+    displayWindow->ui->label_screen->clear();
     if (pSocket) {
         pSocket->stop();
         delete pSocket;
