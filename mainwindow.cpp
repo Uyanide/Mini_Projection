@@ -23,7 +23,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     if (serverState == ServerState::STARTED) {
-        onPushButtonMinicapStopClicked();
+        onPushButtonStopClicked();
         // pSocket & displayWindow & minicapServer will be deleted in onMinicapServerFinished
     } else {
         if (pSocket) {
@@ -55,8 +55,8 @@ void MainWindow::applyQSS() {
 }
 
 void MainWindow::initUI() {
-    ui->pushButton_minicap_start->setEnabled(false);
-    ui->pushButton_minicap_stop->setEnabled(false);
+    ui->pushButton_start->setEnabled(false);
+    ui->pushButton_stop->setEnabled(false);
     setEnableInputFields(false);
     ui->pushButton_adb->setEnabled(true);
     ui->pushButton_device->setEnabled(true);
@@ -71,8 +71,8 @@ void MainWindow::initSlots() {
     connect(ui->pushButton_adb, &QPushButton::clicked, this, &MainWindow::onPushButtonAdbClicked);
     connect(ui->pushButton_device, &QPushButton::clicked, this, &MainWindow::onPushButtonDeviceClicked);
     connect(ui->comboBox_device, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onComboBoxDeviceCurrentIndexChanged);
-    connect(ui->pushButton_minicap_start, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStartClicked);
-    connect(ui->pushButton_minicap_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStopClicked);
+    connect(ui->pushButton_start, &QPushButton::clicked, this, &MainWindow::onPushButtonStartClicked);
+    connect(ui->pushButton_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonStopClicked);
 }
 
 void MainWindow::onPushButtonAdbClicked() {
@@ -92,7 +92,7 @@ void MainWindow::onPushButtonDeviceClicked() {
     if (devices.empty()) {
         appendLog(COLOR_LOG("No devices found...", LogColor::RED));
         setEnableInputFields(false);
-        ui->pushButton_minicap_start->setEnabled(false);
+        ui->pushButton_start->setEnabled(false);
         ui->pushButton_adb->setEnabled(true);
         ui->pushButton_device->setEnabled(true);
         ui->comboBox_device->setEnabled(true);
@@ -123,13 +123,13 @@ void MainWindow::onComboBoxDeviceCurrentIndexChanged(int index) {
 
     appendLog(COLOR_LOG("Device selected: <b>" + deviceName + "</b>", LogColor::GREEN));
     setEnableInputFields(true);
-    ui->pushButton_minicap_start->setEnabled(true);
+    ui->pushButton_start->setEnabled(true);
 }
 
-void MainWindow::onPushButtonMinicapStartClicked() {
+void MainWindow::onPushButtonStartClicked() {
     try {
         serverState = ServerState::PREPARING;
-        ui->pushButton_minicap_start->setEnabled(false);
+        ui->pushButton_start->setEnabled(false);
         setEnableInputFields(false);
 
         appendLog(COLOR_LOG("Starting Minicap...", LogColor::BLUE));
@@ -180,7 +180,7 @@ void MainWindow::onPushButtonMinicapStartClicked() {
         }
     } catch (const std::exception& e) {
         appendLog(COLOR_LOG("Error on initializing Minicap: <b>" + QString(e.what()) + "</b>", LogColor::RED));
-        ui->pushButton_minicap_start->setEnabled(true);
+        ui->pushButton_start->setEnabled(true);
         setEnableInputFields(true);
         serverState = ServerState::IDLE;
         return;
@@ -254,7 +254,7 @@ int MainWindow::initConnection() {
     if (adbCommand->startMinicapForwardPort(1313)) {
         appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
         appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
-        onPushButtonMinicapStopClicked();
+        onPushButtonStopClicked();
         return -1;
     } else {
         appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
@@ -263,7 +263,7 @@ int MainWindow::initConnection() {
         pSocket = new MinicapSocket();
         pSocket->setPort(forwardPort);
         connect(pSocket, &MinicapSocket::connected, this, &MainWindow::onSocketConnected);
-        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::AutoConnection);
+        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
         connect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
         pSocket->start();
     }
@@ -274,31 +274,43 @@ void MainWindow::initWindow() {
     if (!displayWindow) {
         displayWindow = new DisplayWindow(this);
         displayWindow->show();
-        connect(displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonMinicapStopClicked);
+        connect(displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonStopClicked);
     }
 }
 
 void MainWindow::onSocketConnected() {
     appendLog(COLOR_LOG("Connected to Minicap server.", LogColor::GREEN));
-    ui->pushButton_minicap_stop->setEnabled(true);
+    ui->pushButton_stop->setEnabled(true);
 }
 
 void MainWindow::onSocketFrameReceived(QByteArray frame) {
-    static const qreal DPR = devicePixelRatio();
-    QLabel* screen = displayWindow->getLabelScreen();
-    if (screenImage.loadFromData(frame)) {
-        QPixmap pixmap = QPixmap::fromImage(screenImage);
-        pixmap.setDevicePixelRatio(DPR);
-        pixmap = pixmap.scaled(screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        screen->setPixmap(pixmap);
-    } else {
-        appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
+    static bool isProcessingFrame = false;
+    if (isProcessingFrame) {
+        // qDebug() << "Frame dropped.";
+        return;
     }
+    isProcessingFrame = true;
+    QTimer::singleShot(0, [this, frame]() {
+        if (!displayWindow) {
+            isProcessingFrame = false;
+            return;
+        }
+        QLabel* screen = displayWindow->getLabelScreen();
+        if (screenImage.loadFromData(frame)) {
+            QPixmap pixmap = QPixmap::fromImage(screenImage);
+            pixmap.setDevicePixelRatio(GlobalConfig::DPR);
+            pixmap = pixmap.scaled(screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            screen->setPixmap(pixmap);
+        } else {
+            appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
+        }
+        isProcessingFrame = false;
+    });
 }
 
 void MainWindow::onSocketOnError(QString error) {
     appendLog(COLOR_LOG("Error on Minicap socket: <b>" + error + "</b>", LogColor::RED));
-    onPushButtonMinicapStopClicked();
+    onPushButtonStopClicked();
 }
 
 void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
@@ -312,7 +324,7 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
             break;
         case ServerState::STARTED:
             appendLog(COLOR_LOG("Minicap server crashed.", LogColor::RED));
-            onPushButtonMinicapStopClicked();
+            onPushButtonStopClicked();
             break;
         default:
             break;
@@ -322,19 +334,19 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
         delete pSocket;
         pSocket = nullptr;
     }
-    ui->pushButton_minicap_start->setEnabled(true);
+    ui->pushButton_start->setEnabled(true);
     setEnableInputFields(true);
     serverState = ServerState::IDLE;
 }
 
-void MainWindow::onPushButtonMinicapStopClicked() {
+void MainWindow::onPushButtonStopClicked() {
     if (serverState != ServerState::STARTED) {
         return;
     }
 
     appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
-    ui->pushButton_minicap_stop->setEnabled(false);
+    ui->pushButton_stop->setEnabled(false);
 
     if (displayWindow) {
         delete displayWindow;
@@ -361,7 +373,7 @@ void MainWindow::onPushButtonMinicapStopClicked() {
     }
 
     serverState = ServerState::IDLE;
-    ui->pushButton_minicap_start->setEnabled(true);
+    ui->pushButton_start->setEnabled(true);
     setEnableInputFields(true);
 }
 

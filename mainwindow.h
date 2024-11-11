@@ -60,8 +60,8 @@ class MainWindow : public QMainWindow {
     void onPushButtonDeviceClicked();
     void onComboBoxDeviceCurrentIndexChanged(int index);
 
-    void onPushButtonMinicapStartClicked();
-    void onPushButtonMinicapStopClicked();
+    void onPushButtonStartClicked();
+    void onPushButtonStopClicked();
 
     void onMinicapServerReadyReadStandardError();
     void onMinicapServerFinished(int, QProcess::ExitStatus);

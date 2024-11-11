@@ -13,15 +13,14 @@ MinicapSocket::~MinicapSocket() {
 }
 
 void MinicapSocket::run() {
-    QTimer::singleShot(0, this, [this]() {
+    QMetaObject::invokeMethod(this, [this]() {
         pSocket = new QTcpSocket();
         connect(pSocket, &QTcpSocket::readyRead, this, &MinicapSocket::onReadyRead);
         connect(pSocket, &QTcpSocket::connected, this, &MinicapSocket::onConnected);
         connect(pSocket, &QTcpSocket::disconnected, this, &MinicapSocket::onDisconnected);
         connect(pSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), this, &MinicapSocket::onError);
 
-        pSocket->connectToHost("localhost", port);
-    });
+        pSocket->connectToHost("localhost", port); }, Qt::QueuedConnection);
 
     exec();
 

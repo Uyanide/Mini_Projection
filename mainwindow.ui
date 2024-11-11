@@ -23,7 +23,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>Minicap GUI</string>
+   <string>Mini Projection</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout">
@@ -279,16 +279,16 @@
         </layout>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_minicap_start">
+        <widget class="QPushButton" name="pushButton_start">
          <property name="text">
-          <string>Start Minicap</string>
+          <string>Link Start!</string>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton_minicap_stop">
+        <widget class="QPushButton" name="pushButton_stop">
          <property name="text">
-          <string>Stop Minicap</string>
+          <string>Stop</string>
          </property>
         </widget>
        </item>
