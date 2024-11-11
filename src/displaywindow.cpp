@@ -33,7 +33,7 @@ bool DisplayWindow::showFrame(const QByteArray &frame) {
     } else {  // init
         // fps timer
         m_timerFps.start(1000);
-        connect(&m_timerFps, &QTimer::timeout, [this]() {
+        connect(&m_timerFps, &QTimer::timeout, this, [this]() {
             setWindowTitle(m_title + " - " + QString::number(m_frameCount) + " FPS");
             m_frameCount = 0;
         });

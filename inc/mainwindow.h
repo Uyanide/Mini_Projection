@@ -44,7 +44,6 @@ class MainWindow : public QMainWindow {
     void applyQSS();
     void initUI();
     void initSlots();
-
     void initCheck();
 
     int pushMinicapFiles(const QString &ABI, const QString &SDK);
