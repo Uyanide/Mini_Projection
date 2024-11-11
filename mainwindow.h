@@ -74,19 +74,19 @@ class MainWindow : public QMainWindow {
 
    private:
     Ui::MainWindow *ui;
-    quint16 forwardPort;
+    quint16 m_forwardPort;
 
-    QString abi;
-    QString sdk;
+    QString m_abi;
+    QString m_sdk;
 
-    QProcess *minicapServer = nullptr;
-    ServerState serverState = ServerState::IDLE;
+    QProcess *m_minicapServer = nullptr;
+    ServerState m_serverState = ServerState::IDLE;
 
-    MinicapSocket *pSocket = nullptr;
+    MinicapSocket *m_pSocketThread = nullptr;
 
-    DisplayWindow *displayWindow = nullptr;
+    DisplayWindow *m_displayWindow = nullptr;
 
-    AdbCommand *adbCommand;
+    AdbCommand *m_adbCommand;
 };
 
 #endif  // MAINWINDOW_H

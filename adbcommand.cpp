@@ -2,14 +2,14 @@
 
 #include <QRegularExpression>
 
-AdbCommand::AdbCommand(const QString &AdbPath) : adbPath(AdbPath) {}
+AdbCommand::AdbCommand(const QString &AdbPath) : m_adbPath(AdbPath) {}
 
 QStringList AdbCommand::getDevices() {
-    if (adbPath.isEmpty()) {
+    if (m_adbPath.isEmpty()) {
         return {};
     }
     QProcess process;
-    process.start(adbPath, QStringList() << "devices");
+    process.start(m_adbPath, QStringList() << "devices");
     if (!process.waitForStarted()) {
         return {};
     }
@@ -38,7 +38,7 @@ QStringList AdbCommand::getDevices() {
 
 bool AdbCommand::testValidity() {
     QProcess process;
-    process.start(adbPath, QStringList() << "version");
+    process.start(m_adbPath, QStringList() << "version");
     if (!process.waitForStarted()) {
         return false;
     }
@@ -46,7 +46,7 @@ bool AdbCommand::testValidity() {
     if (process.exitCode() != 0) {
         return false;
     }
-    standardOutput = process.readAllStandardOutput();
+    m_standardOutput = process.readAllStandardOutput();
     return true;
 }
 
@@ -63,7 +63,7 @@ bool AdbCommand::checkFiles(const QStringList &files) {
 
 QString AdbCommand::getDeviceInfo(const QString &key) {
     if (!executeCommand(QStringList() << "shell" << "getprop" << key)) {
-        return standardOutput.trimmed();
+        return m_standardOutput.trimmed();
     } else {
         return "";
     }
@@ -87,7 +87,7 @@ QPair<int, int> AdbCommand::getScreenSize() {
     if (executeCommand(QStringList() << "shell" << "dumpsys" << "window" << "displays" << "|" << "grep" << "init=")) {
         return {0, 0};
     }
-    QString output = standardOutput;
+    QString output = m_standardOutput;
 
     static const QRegularExpression regex("cur=(\\d+)x(\\d+)");
     QRegularExpressionMatch match = regex.match(output);
@@ -96,28 +96,28 @@ QPair<int, int> AdbCommand::getScreenSize() {
         int height = match.captured(2).toInt();
         return {width, height};
     } else {
-        errorString = "Could not find screen size in output.";
+        m_errorString = "Could not find screen size in output.";
         return {0, 0};
     }
 }
 
 QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK, QPair<int, int> screenSize, QPair<int, int> displaySize, int frameRate) {
-    standardOutput.clear();
-    errorString.clear();
+    m_standardOutput.clear();
+    m_errorString.clear();
 
-    if (adbPath.isEmpty()) {
-        errorString = "ADB path not set.";
+    if (m_adbPath.isEmpty()) {
+        m_errorString = "ADB path not set.";
         return nullptr;
     }
-    if (deviceName.isEmpty()) {
-        errorString = "Device not set.";
+    if (m_deviceName.isEmpty()) {
+        m_errorString = "Device not set.";
         return nullptr;
     }
 
     QProcess *process = new QProcess;
-    process->start(adbPath, QStringList()
+    process->start(m_adbPath, QStringList()
                                 << "-s"
-                                << deviceName
+                                << m_deviceName
                                 << "shell"
                                 << "LD_LIBRARY_PATH=" + GlobalConfig::MINICAP_DEVICE_PATH + " " + GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
                                 << "-P"
@@ -130,7 +130,7 @@ QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK,
                                 << "-r"
                                 << QString::number(frameRate));
     if (!process->waitForStarted()) {
-        errorString = process->errorString();
+        m_errorString = process->errorString();
         delete process;
         return nullptr;
     }
@@ -164,22 +164,22 @@ int AdbCommand::stopMinicapForwardPort(int localPort) {
 }
 
 int AdbCommand::executeCommand(const QStringList &arguments, bool waitForFinished) {
-    standardOutput.clear();
-    errorString.clear();
+    m_standardOutput.clear();
+    m_errorString.clear();
 
-    if (adbPath.isEmpty()) {
-        errorString = "ADB path not set.";
+    if (m_adbPath.isEmpty()) {
+        m_errorString = "ADB path not set.";
         return -1;
     }
-    if (deviceName.isEmpty()) {
-        errorString = "Device not set.";
+    if (m_deviceName.isEmpty()) {
+        m_errorString = "Device not set.";
         return -1;
     }
 
     QProcess process;
-    process.start(adbPath, QStringList() << "-s" << deviceName << arguments);
+    process.start(m_adbPath, QStringList() << "-s" << m_deviceName << arguments);
     if (!process.waitForStarted()) {
-        errorString = process.errorString();
+        m_errorString = process.errorString();
         return -1;
     }
 
@@ -189,8 +189,8 @@ int AdbCommand::executeCommand(const QStringList &arguments, bool waitForFinishe
 
     process.waitForFinished();
 
-    errorString = process.readAllStandardError().trimmed();
-    standardOutput = process.readAllStandardOutput();
+    m_errorString = process.readAllStandardError().trimmed();
+    m_standardOutput = process.readAllStandardOutput();
     if (process.exitCode()) {
         return process.exitCode();
     }

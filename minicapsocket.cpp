@@ -4,7 +4,7 @@
 #include <QTcpSocket>
 #include <QTimer>
 
-MinicapSocket::MinicapSocket(QObject *parent) : QThread(parent), pSocket(nullptr) {
+MinicapSocket::MinicapSocket(QObject *parent) : QThread(parent), m_pSocket(nullptr) {
     connect(this, &MinicapSocket::requestStop, this, &MinicapSocket::handleStop);
 }
 
@@ -14,18 +14,18 @@ MinicapSocket::~MinicapSocket() {
 
 void MinicapSocket::run() {
     QMetaObject::invokeMethod(this, [this]() {
-        pSocket = new QTcpSocket();
-        connect(pSocket, &QTcpSocket::readyRead, this, &MinicapSocket::onReadyRead);
-        connect(pSocket, &QTcpSocket::connected, this, &MinicapSocket::onConnected);
-        connect(pSocket, &QTcpSocket::disconnected, this, &MinicapSocket::onDisconnected);
-        connect(pSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), this, &MinicapSocket::onError);
+        m_pSocket = new QTcpSocket();
+        connect(m_pSocket, &QTcpSocket::readyRead, this, &MinicapSocket::onReadyRead);
+        connect(m_pSocket, &QTcpSocket::connected, this, &MinicapSocket::onConnected);
+        connect(m_pSocket, &QTcpSocket::disconnected, this, &MinicapSocket::onDisconnected);
+        connect(m_pSocket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::errorOccurred), this, &MinicapSocket::onError);
 
-        pSocket->connectToHost("localhost", port); }, Qt::QueuedConnection);
+        m_pSocket->connectToHost("localhost", m_port); }, Qt::QueuedConnection);
 
     exec();
 
-    delete pSocket;
-    pSocket = nullptr;
+    delete m_pSocket;
+    m_pSocket = nullptr;
 }
 
 void MinicapSocket::stop() {
@@ -35,59 +35,59 @@ void MinicapSocket::stop() {
 }
 
 void MinicapSocket::handleStop() {
-    if (pSocket) {
-        pSocket->disconnectFromHost();
-        if (pSocket->state() != QAbstractSocket::UnconnectedState) {
-            pSocket->waitForDisconnected();
+    if (m_pSocket) {
+        m_pSocket->disconnectFromHost();
+        if (m_pSocket->state() != QAbstractSocket::UnconnectedState) {
+            m_pSocket->waitForDisconnected();
         }
     }
 }
 
 void MinicapSocket::setPort(quint16 port) {
-    this->port = port;
+    this->m_port = port;
 }
 
 void MinicapSocket::onReadyRead() {
-    if (pSocket) {
-        if (!isHeaderRead) {
-            if (pSocket->bytesAvailable() < 24) {
+    if (m_pSocket) {
+        if (!m_isHeaderRead) {
+            if (m_pSocket->bytesAvailable() < 24) {
                 return;
             }
 
-            QByteArray headerData = pSocket->read(24);
+            QByteArray headerData = m_pSocket->read(24);
             QDataStream stream(headerData);
             stream.setByteOrder(QDataStream::LittleEndian);
 
-            stream >> header.version >> header.unused >> header.pid >> header.realWidth >> header.realHeight >> header.virtualWidth >> header.virtualHeight >> header.orientation >> header.quirks;
+            stream >> m_header.version >> m_header.unused >> m_header.pid >> m_header.realWidth >> m_header.realHeight >> m_header.virtualWidth >> m_header.virtualHeight >> m_header.orientation >> m_header.quirks;
 
-            qDebug() << "Version: " << header.version;
-            qDebug() << "PID: " << header.pid;
-            qDebug() << "Real width: " << header.realWidth;
-            qDebug() << "Real height: " << header.realHeight;
-            qDebug() << "Virtual width: " << header.virtualWidth;
-            qDebug() << "Virtual height: " << header.virtualHeight;
-            qDebug() << "Orientation: " << header.orientation;
-            qDebug() << "Quirks: " << header.quirks;
+            qDebug() << "Version: " << m_header.version;
+            qDebug() << "PID: " << m_header.pid;
+            qDebug() << "Real width: " << m_header.realWidth;
+            qDebug() << "Real height: " << m_header.realHeight;
+            qDebug() << "Virtual width: " << m_header.virtualWidth;
+            qDebug() << "Virtual height: " << m_header.virtualHeight;
+            qDebug() << "Orientation: " << m_header.orientation;
+            qDebug() << "Quirks: " << m_header.quirks;
 
-            isHeaderRead = true;
+            m_isHeaderRead = true;
         }
 
-        buffer.append(pSocket->readAll());
+        m_buffer.append(m_pSocket->readAll());
 
-        while (buffer.size() >= 4) {
-            QDataStream stream(buffer);
+        while (m_buffer.size() >= 4) {
+            QDataStream stream(m_buffer);
             stream.setByteOrder(QDataStream::LittleEndian);
 
             quint32 size;
             stream >> size;
             // qDebug() << "Frame size: " << size;
 
-            if (buffer.size() < size + 4) {
+            if (m_buffer.size() < size + 4) {
                 return;
             }
 
-            QByteArray frame = buffer.mid(4, size);
-            buffer = buffer.mid(size + 4);
+            QByteArray frame = m_buffer.mid(4, size);
+            m_buffer = m_buffer.mid(size + 4);
 
             emit frameReceived(frame);
         }

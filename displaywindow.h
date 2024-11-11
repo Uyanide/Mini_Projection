@@ -33,12 +33,12 @@ class DisplayWindow : public QMainWindow {
    private:
     Ui::DisplayWindow *ui;
 
-    QString title;
-    QImage screenImage;
+    QString m_title;
+    QImage m_screenImage;
 
-    QTimer timer1s;
+    QTimer m_timerFps;
 
-    int frameCount = 0;
+    int m_frameCount = 0;
 };
 
 #endif  // DISPLAYWINDOW_H

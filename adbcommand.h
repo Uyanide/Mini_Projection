@@ -33,24 +33,24 @@ class AdbCommand {
     int startMinicapForwardPort(int localPort);
     int stopMinicapForwardPort(int localPort);
 
-    inline QString getDeviceName() const { return deviceName; }
-    inline void setDeviceName(const QString& deviceName) { this->deviceName = deviceName; }
+    inline QString getDeviceName() const { return m_deviceName; }
+    inline void setDeviceName(const QString& deviceName) { this->m_deviceName = deviceName; }
 
-    inline QString getAdbPath() const { return adbPath; }
-    inline void setAdbPath(const QString& adbPath) { this->adbPath = adbPath; }
+    inline QString getAdbPath() const { return m_adbPath; }
+    inline void setAdbPath(const QString& adbPath) { this->m_adbPath = adbPath; }
 
-    inline QString getErrorString() const { return errorString; }
-    inline QString getStandardOutput() const { return standardOutput; }
+    inline QString getErrorString() const { return m_errorString; }
+    inline QString getStandardOutput() const { return m_standardOutput; }
 
    private:
     int executeCommand(const QStringList& arguments, bool waitForFinished = true);
 
    private:
-    QString adbPath = "";
-    QString deviceName = "";
+    QString m_adbPath = "";
+    QString m_deviceName = "";
 
-    QString errorString = "";
-    QString standardOutput = "";
+    QString m_errorString = "";
+    QString m_standardOutput = "";
 };
 
 #endif  // ADBCOMMAND_H

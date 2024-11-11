@@ -3,7 +3,7 @@
 #include "ui_displaywindow.h"
 
 DisplayWindow::DisplayWindow(const QString &title, QWidget *parent)
-    : title(title), QMainWindow(parent), ui(new Ui::DisplayWindow) {
+    : m_title(title), QMainWindow(parent), ui(new Ui::DisplayWindow) {
     ui->setupUi(this);
 }
 
@@ -13,25 +13,25 @@ void DisplayWindow::closeEvent(QCloseEvent *event) {
 }
 
 DisplayWindow::~DisplayWindow() {
-    if (timer1s.isActive()) {
-        timer1s.stop();
+    if (m_timerFps.isActive()) {
+        m_timerFps.stop();
     }
     delete ui;
 }
 
 bool DisplayWindow::showFrame(const QByteArray &frame) {
-    if (timer1s.isActive()) {
-        frameCount++;
+    if (m_timerFps.isActive()) {
+        m_frameCount++;
     } else {
-        timer1s.start(1000);
-        connect(&timer1s, &QTimer::timeout, [this]() {
-            setWindowTitle(title + " - " + QString::number(frameCount) + " FPS");
-            frameCount = 0;
+        m_timerFps.start(1000);
+        connect(&m_timerFps, &QTimer::timeout, [this]() {
+            setWindowTitle(m_title + " - " + QString::number(m_frameCount) + " FPS");
+            m_frameCount = 0;
         });
     }
     if (!frame.isEmpty()) {
-        if (screenImage.loadFromData(frame)) {
-            QPixmap pixmap = QPixmap::fromImage(screenImage);
+        if (m_screenImage.loadFromData(frame)) {
+            QPixmap pixmap = QPixmap::fromImage(m_screenImage);
             pixmap.setDevicePixelRatio(GlobalConfig::DPR);
             pixmap = pixmap.scaled(ui->label_screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
             ui->label_screen->setPixmap(pixmap);

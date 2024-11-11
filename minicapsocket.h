@@ -41,11 +41,11 @@ class MinicapSocket : public QThread {
     void requestStop();
 
    private:
-    QByteArray buffer;
-    bool isHeaderRead = false;
-    MinicapHeader header;
-    quint16 port;
-    QTcpSocket* pSocket = nullptr;
+    QByteArray m_buffer;
+    bool m_isHeaderRead = false;
+    MinicapHeader m_header;
+    quint16 m_port;
+    QTcpSocket* m_pSocket = nullptr;
 };
 
 #endif  // MINICAPSOCKET_H

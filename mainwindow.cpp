@@ -14,7 +14,7 @@ MainWindow::MainWindow(QWidget* parent)
       ui(new Ui::MainWindow) {
     ui->setupUi(this);
 
-    adbCommand = new AdbCommand();
+    m_adbCommand = new AdbCommand();
 
     applyQSS();
     initUI();
@@ -24,26 +24,26 @@ MainWindow::MainWindow(QWidget* parent)
 }
 
 MainWindow::~MainWindow() {
-    if (serverState == ServerState::STARTED) {
+    if (m_serverState == ServerState::STARTED) {
         onPushButtonStopClicked();
         // pSocket & displayWindow & minicapServer will be deleted in onMinicapServerFinished
     } else {
-        if (pSocket) {
-            pSocket->stop();
-            pSocket->deleteLater();
+        if (m_pSocketThread) {
+            m_pSocketThread->stop();
+            m_pSocketThread->deleteLater();
         }
-        if (displayWindow) {
+        if (m_displayWindow) {
             // displayWindow->deleteLater();
             // displayWindow is managed by Qt
         }
-        if (minicapServer) {
-            minicapServer->kill();
-            minicapServer->waitForFinished();
-            delete minicapServer;
+        if (m_minicapServer) {
+            m_minicapServer->kill();
+            m_minicapServer->waitForFinished();
+            delete m_minicapServer;
         }
     }
-    if (adbCommand) {
-        delete adbCommand;
+    if (m_adbCommand) {
+        delete m_adbCommand;
     }
 
     delete ui;
@@ -64,9 +64,9 @@ void MainWindow::initUI() {
     ui->pushButton_device->setEnabled(true);
     ui->comboBox_device->setEnabled(true);
 
-    adbCommand->setAdbPath(ui->lineEdit_adb->text());
+    m_adbCommand->setAdbPath(ui->lineEdit_adb->text());
 
-    forwardPort = ui->lineEdit_port->text().toUShort();
+    m_forwardPort = ui->lineEdit_port->text().toUShort();
 }
 
 void MainWindow::initSlots() {
@@ -79,11 +79,11 @@ void MainWindow::initSlots() {
 
 void MainWindow::initCheck() {
     appendLog(COLOR_LOG("checking ADB...", LogColor::GRAY));
-    if (!adbCommand->testValidity()) {
+    if (!m_adbCommand->testValidity()) {
         appendLog(COLOR_LOG("ADB invalid, please set a valid path.", LogColor::RED));
         return;
     }
-    QString output = adbCommand->getStandardOutput();
+    QString output = m_adbCommand->getStandardOutput();
     if (output.contains("Android Debug Bridge")) {
         appendLog(COLOR_LOG("ADB: <b>" + output + "</b>", LogColor::GRAY));
         appendLog(COLOR_LOG("ADB OK.", LogColor::GREEN));
@@ -104,7 +104,7 @@ void MainWindow::onPushButtonAdbClicked() {
     if (!adbPath.isEmpty()) {
         ui->lineEdit_adb->setText(adbPath);
         appendLog(COLOR_LOG("ADB path set to: <b>" + adbPath + "</b>", LogColor::GREEN));
-        adbCommand->setAdbPath(adbPath);
+        m_adbCommand->setAdbPath(adbPath);
     }
 }
 
@@ -112,8 +112,8 @@ void MainWindow::onPushButtonDeviceClicked() {
     ui->comboBox_device->clear();
     ui->comboBox_device->setCurrentIndex(-1);
 
-    adbCommand->setDeviceName("");
-    QStringList devices = adbCommand->getDevices();
+    m_adbCommand->setDeviceName("");
+    QStringList devices = m_adbCommand->getDevices();
     if (devices.empty()) {
         appendLog(COLOR_LOG("No devices found...", LogColor::RED));
         setEnableInputFields(false);
@@ -139,8 +139,8 @@ void MainWindow::onComboBoxDeviceCurrentIndexChanged(int index) {
     }
 
     QString deviceName = ui->comboBox_device->currentText();
-    if (adbCommand) {
-        adbCommand->setDeviceName(deviceName);
+    if (m_adbCommand) {
+        m_adbCommand->setDeviceName(deviceName);
     }
 
     appendLog(COLOR_LOG("Device selected: <b>" + deviceName + "</b>", LogColor::GREEN));
@@ -150,7 +150,7 @@ void MainWindow::onComboBoxDeviceCurrentIndexChanged(int index) {
 
 void MainWindow::onPushButtonStartClicked() {
     try {
-        serverState = ServerState::PREPARING;
+        m_serverState = ServerState::PREPARING;
         ui->pushButton_start->setEnabled(false);
         setEnableInputFields(false);
 
@@ -160,37 +160,37 @@ void MainWindow::onPushButtonStartClicked() {
         appendLog(COLOR_LOG("Checking local files...", LogColor::GRAY));
 
         // if (!checkMinicapFiles()) {
-        if (!adbCommand->checkFiles(QStringList()
+        if (!m_adbCommand->checkFiles(QStringList()
                                     << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
                                     << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap.so")) {
             appendLog(COLOR_LOG("Minicap files not found. Pushing files...", LogColor::GRAY));
             appendLog(COLOR_LOG("Getting device information...", LogColor::GRAY));
 
             // get device ABI and SDK
-            abi = adbCommand->getDeviceInfo("ro.product.cpu.abi");
-            if (abi.isEmpty()) {
-                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+            m_abi = m_adbCommand->getDeviceInfo("ro.product.cpu.abi");
+            if (m_abi.isEmpty()) {
+                appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on getting ABI.");
             } else {
-                appendLog(COLOR_LOG("Device ABI: <b>" + abi + "</b>", LogColor::GREEN));
+                appendLog(COLOR_LOG("Device ABI: <b>" + m_abi + "</b>", LogColor::GREEN));
             }
 
-            sdk = adbCommand->getDeviceInfo("ro.build.version.sdk");
-            if (sdk.isEmpty()) {
-                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+            m_sdk = m_adbCommand->getDeviceInfo("ro.build.version.sdk");
+            if (m_sdk.isEmpty()) {
+                appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on getting SDK.");
             } else {
-                appendLog(COLOR_LOG("Device SDK: <b>" + sdk + "</b>", LogColor::GREEN));
+                appendLog(COLOR_LOG("Device SDK: <b>" + m_sdk + "</b>", LogColor::GREEN));
             }
 
             // push minicap and minicap.so to device
-            if (pushMinicapFiles(abi, sdk)) {
+            if (pushMinicapFiles(m_abi, m_sdk)) {
                 throw std::runtime_error("Error on pushing files.");
             }
 
             // add execute permission to minicap
-            if (adbCommand->addExecutePermission(GlobalConfig::MINICAP_DEVICE_PATH + "/minicap")) {
-                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+            if (m_adbCommand->addExecutePermission(GlobalConfig::MINICAP_DEVICE_PATH + "/minicap")) {
+                appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on adding execute permission.");
             }
         }
@@ -204,7 +204,7 @@ void MainWindow::onPushButtonStartClicked() {
         appendLog(COLOR_LOG("Error on initializing Minicap: <b>" + QString(e.what()) + "</b>", LogColor::RED));
         ui->pushButton_start->setEnabled(true);
         setEnableInputFields(true);
-        serverState = ServerState::IDLE;
+        m_serverState = ServerState::IDLE;
         return;
     }
 }
@@ -214,9 +214,9 @@ int MainWindow::pushMinicapFiles(const QString& ABI, const QString& SDK) {
          (QStringList()
           << "libs/" + ABI + "/minicap"
           << "jni/minicap-shared/aosp/libs/android-" + SDK + "/" + ABI + "/minicap.so")) {
-        int ret = adbCommand->pushFile(GlobalConfig::MINICAP_PATH + "/" + file, GlobalConfig::MINICAP_DEVICE_PATH);
+        int ret = m_adbCommand->pushFile(GlobalConfig::MINICAP_PATH + "/" + file, GlobalConfig::MINICAP_DEVICE_PATH);
         if (ret != 0) {
-            appendLog(COLOR_LOG("Error: " + adbCommand->getErrorString() + "</b>", LogColor::RED));
+            appendLog(COLOR_LOG("Error: " + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
             return ret;
         }
     }
@@ -224,16 +224,16 @@ int MainWindow::pushMinicapFiles(const QString& ABI, const QString& SDK) {
 }
 
 bool MainWindow::startMinicapServer() {
-    if (serverState != ServerState::PREPARING) {
+    if (m_serverState != ServerState::PREPARING) {
         appendLog(COLOR_LOG("Minicap server is already running...", LogColor::RED));
         return false;
     }
 
-    serverState = ServerState::STARTING;
+    m_serverState = ServerState::STARTING;
 
-    QPair<int, int> screenSize = adbCommand->getScreenSize();
+    QPair<int, int> screenSize = m_adbCommand->getScreenSize();
     if (screenSize.first == 0 || screenSize.second == 0) {
-        appendLog(COLOR_LOG("Error on getting screen size: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+        appendLog(COLOR_LOG("Error on getting screen size: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
         return false;
     }
     double scale = ui->lineEdit_scale->text().toDouble();
@@ -244,25 +244,25 @@ bool MainWindow::startMinicapServer() {
     appendLog(COLOR_LOG("Screen size: <b>" + QString::number(diviceWidth) + "x" + QString::number(diviceHeight) + "</b>", LogColor::GRAY));
     appendLog(COLOR_LOG("Display size: <b>" + QString::number(displayWidth) + "x" + QString::number(displayHeight) + "</b>", LogColor::GRAY));
     int frameRate = ui->lineEdit_fps->text().toInt();
-    minicapServer = adbCommand->startMinicapServer(abi, sdk, screenSize, {displayWidth, displayHeight}, frameRate);
-    if (!minicapServer) {
-        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+    m_minicapServer = m_adbCommand->startMinicapServer(m_abi, m_sdk, screenSize, {displayWidth, displayHeight}, frameRate);
+    if (!m_minicapServer) {
+        appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
         return false;
     }
-    connect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
-    connect(minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
+    connect(m_minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+    connect(m_minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
 
     return true;
 }
 
 void MainWindow::onMinicapServerReadyReadStandardError() {
-    QString output = minicapServer->readAllStandardError();
+    QString output = m_minicapServer->readAllStandardError();
     // appendLog(COLOR_LOG("Minicap: <b>" + output + "</b>", LogColor::GRAY));
-    if (serverState == ServerState::STARTING) {
+    if (m_serverState == ServerState::STARTING) {
         if (output.contains("Publishing virtual display")) {
-            serverState = ServerState::STARTED;
+            m_serverState = ServerState::STARTED;
             appendLog(COLOR_LOG("Minicap server started.", LogColor::GREEN));
-            disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+            disconnect(m_minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
             initConnection();
         }
     }
@@ -270,31 +270,31 @@ void MainWindow::onMinicapServerReadyReadStandardError() {
 
 void MainWindow::initConnection() {
     appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
-    this->forwardPort = ui->lineEdit_port->text().toUShort();
-    if (adbCommand->startMinicapForwardPort(1313)) {
-        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
-        appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
+    this->m_forwardPort = ui->lineEdit_port->text().toUShort();
+    if (m_adbCommand->startMinicapForwardPort(1313)) {
+        appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
+        appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(m_forwardPort) + "</b>", LogColor::RED));
         onPushButtonStopClicked();
         return;
     } else {
-        appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
+        appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(m_forwardPort) + "</b>", LogColor::GREEN));
     }
-    if (!pSocket) {
-        pSocket = new MinicapSocket();
-        pSocket->setPort(forwardPort);
-        connect(pSocket, &MinicapSocket::connected, this, &MainWindow::onSocketConnected);
-        connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
-        connect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
-        pSocket->start();
+    if (!m_pSocketThread) {
+        m_pSocketThread = new MinicapSocket();
+        m_pSocketThread->setPort(m_forwardPort);
+        connect(m_pSocketThread, &MinicapSocket::connected, this, &MainWindow::onSocketConnected);
+        connect(m_pSocketThread, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
+        connect(m_pSocketThread, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
+        m_pSocketThread->start();
         appendLog(COLOR_LOG("Waiting for socket connection...", LogColor::GRAY));
     }
 }
 
 void MainWindow::initWindow() {
-    if (!displayWindow) {
-        displayWindow = new DisplayWindow(ui->comboBox_device->currentText(), this);
-        displayWindow->show();
-        connect(displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonStopClicked);
+    if (!m_displayWindow) {
+        m_displayWindow = new DisplayWindow(ui->comboBox_device->currentText(), this);
+        m_displayWindow->show();
+        connect(m_displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonStopClicked);
     }
 }
 
@@ -312,11 +312,11 @@ void MainWindow::onSocketFrameReceived(QByteArray frame) {
     }
     isProcessingFrame = true;
     QTimer::singleShot(0, [this, frame]() {
-        if (!displayWindow) {
+        if (!m_displayWindow) {
             isProcessingFrame = false;
             return;
         }
-        if (!displayWindow->showFrame(frame)) {
+        if (!m_displayWindow->showFrame(frame)) {
             appendLog(COLOR_LOG("Error on loading frame.", LogColor::RED));
         }
         isProcessingFrame = false;
@@ -329,10 +329,10 @@ void MainWindow::onSocketOnError(QString error) {
 }
 
 void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
-    switch (serverState) {
+    switch (m_serverState) {
         case ServerState::STARTING:
-            appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer->errorString() + "</b>", LogColor::RED));
-            disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+            appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + m_minicapServer->errorString() + "</b>", LogColor::RED));
+            disconnect(m_minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
             break;
         case ServerState::STOPPING:
             appendLog(COLOR_LOG("Minicap server stopped.", LogColor::GREEN));
@@ -344,50 +344,50 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
         default:
             break;
     }
-    if (pSocket) {
-        pSocket->stop();
-        delete pSocket;
-        pSocket = nullptr;
+    if (m_pSocketThread) {
+        m_pSocketThread->stop();
+        delete m_pSocketThread;
+        m_pSocketThread = nullptr;
     }
     ui->pushButton_start->setEnabled(true);
     setEnableInputFields(true);
-    serverState = ServerState::IDLE;
+    m_serverState = ServerState::IDLE;
 }
 
 void MainWindow::onPushButtonStopClicked() {
-    if (serverState != ServerState::STARTED) {
+    if (m_serverState != ServerState::STARTED) {
         return;
     }
 
     appendLog(COLOR_LOG("Stopping Minicap...", LogColor::BLUE));
-    serverState = ServerState::STOPPING;
+    m_serverState = ServerState::STOPPING;
     ui->pushButton_stop->setEnabled(false);
 
-    if (displayWindow) {
-        delete displayWindow;
-        displayWindow = nullptr;
+    if (m_displayWindow) {
+        delete m_displayWindow;
+        m_displayWindow = nullptr;
     }
 
-    disconnect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
-    if (pSocket) {
-        pSocket->stop();
-        delete pSocket;
-        pSocket = nullptr;
+    disconnect(m_pSocketThread, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
+    if (m_pSocketThread) {
+        m_pSocketThread->stop();
+        delete m_pSocketThread;
+        m_pSocketThread = nullptr;
     }
 
-    if (adbCommand->stopMinicapServer(minicapServer)) {
-        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+    if (m_adbCommand->stopMinicapServer(m_minicapServer)) {
+        appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
     } else {
-        minicapServer = nullptr;
+        m_minicapServer = nullptr;
     }
 
-    if (adbCommand->stopMinicapForwardPort(1313)) {
-        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+    if (m_adbCommand->stopMinicapForwardPort(1313)) {
+        appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
     } else {
-        appendLog(COLOR_LOG("Port removed: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
+        appendLog(COLOR_LOG("Port removed: <b>" + QString::number(m_forwardPort) + "</b>", LogColor::GREEN));
     }
 
-    serverState = ServerState::IDLE;
+    m_serverState = ServerState::IDLE;
     ui->pushButton_start->setEnabled(true);
     setEnableInputFields(true);
 }
