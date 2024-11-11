@@ -5,8 +5,6 @@
 #include <QProcess>
 #include <QStringList>
 
-#include "globalconfig.h"
-
 class AdbCommand {
    public:
     AdbCommand() = default;

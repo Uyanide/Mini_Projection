@@ -1,4 +1,5 @@
 #include "adbcommand.h"
+#include "globalconfig.h"
 
 #include <QRegularExpression>
 
