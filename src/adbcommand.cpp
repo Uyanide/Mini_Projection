@@ -1,7 +1,8 @@
 #include "adbcommand.h"
-#include "globalconfig.h"
 
 #include <QRegularExpression>
+
+#include "globalconfig.h"
 
 AdbCommand::AdbCommand(const QString &AdbPath) : m_adbPath(AdbPath) {}
 
@@ -70,18 +71,18 @@ QString AdbCommand::getDeviceInfo(const QString &key) {
     }
 }
 
-int AdbCommand::pushFile(const QString &localPath, const QString &remotePath) {
+bool AdbCommand::pushFile(const QString &localPath, const QString &remotePath) {
     if (executeCommand(QStringList() << "push" << localPath << remotePath)) {
-        return -1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
-int AdbCommand::addExecutePermission(const QString &path) {
+bool AdbCommand::addExecutePermission(const QString &path) {
     if (executeCommand(QStringList() << "shell" << "chmod" << "+x" << path)) {
-        return -1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 QPair<int, int> AdbCommand::getScreenSize() {
@@ -117,19 +118,19 @@ QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK,
 
     QProcess *process = new QProcess;
     process->start(m_adbPath, QStringList()
-                                << "-s"
-                                << m_deviceName
-                                << "shell"
-                                << "LD_LIBRARY_PATH=" + GlobalConfig::MINICAP_DEVICE_PATH + " " + GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
-                                << "-P"
-                                << QString("%1x%2@%3x%4/0")
-                                       .arg(screenSize.first)
-                                       .arg(screenSize.second)
-                                       .arg(displaySize.first)
-                                       .arg(displaySize.second)
-                                << "-S"
-                                << "-r"
-                                << QString::number(frameRate));
+                                  << "-s"
+                                  << m_deviceName
+                                  << "shell"
+                                  << "LD_LIBRARY_PATH=" + GlobalConfig::MINICAP_DEVICE_PATH + " " + GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
+                                  << "-P"
+                                  << QString("%1x%2@%3x%4/0")
+                                         .arg(screenSize.first)
+                                         .arg(screenSize.second)
+                                         .arg(displaySize.first)
+                                         .arg(displaySize.second)
+                                  << "-S"
+                                  << "-r"
+                                  << QString::number(frameRate));
     if (!process->waitForStarted()) {
         m_errorString = process->errorString();
         delete process;
@@ -139,29 +140,29 @@ QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK,
     return process;
 }
 
-int AdbCommand::stopMinicapServer(QProcess *minicapServer) {
+bool AdbCommand::stopMinicapServer(QProcess *minicapServer) {
     if (executeCommand(QStringList() << "shell" << "pkill" << "minicap")) {
-        return 1;
+        return false;
     }
     if (minicapServer) {
         minicapServer->waitForFinished();
         delete minicapServer;
     }
-    return 0;
+    return true;
 }
 
-int AdbCommand::startMinicapForwardPort(int localPort) {
+bool AdbCommand::startMinicapForwardPort(int localPort) {
     if (executeCommand(QStringList() << "forward" << "tcp:" + QString::number(localPort) << "localabstract:minicap")) {
-        return 1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
-int AdbCommand::stopMinicapForwardPort(int localPort) {
+bool AdbCommand::stopMinicapForwardPort(int localPort) {
     if (executeCommand(QStringList() << "forward" << "--remove" << "tcp:" + QString::number(localPort))) {
-        return 1;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 int AdbCommand::executeCommand(const QStringList &arguments, bool waitForFinished) {

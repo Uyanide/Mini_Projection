@@ -71,7 +71,7 @@ bool MinicapWrapper::start() {
             }
 
             // add execute permission to minicap
-            if (m_adbCommand->addExecutePermission(GlobalConfig::MINICAP_DEVICE_PATH + "/minicap")) {
+            if (!m_adbCommand->addExecutePermission(GlobalConfig::MINICAP_DEVICE_PATH + "/minicap")) {
                 emit appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on adding execute permission.");
             }
@@ -96,6 +96,7 @@ void MinicapWrapper::stop() {
         return;
     }
 
+    appendLog(COLOR_LOG("Stopping Minicap...", LogColor::BLUE));
     m_serverState = ServerState::STOPPING;
 
     if (m_displayWindow) {
@@ -110,13 +111,13 @@ void MinicapWrapper::stop() {
         m_pSocketThread = nullptr;
     }
 
-    if (m_adbCommand->stopMinicapServer(m_minicapServer)) {
+    if (!m_adbCommand->stopMinicapServer(m_minicapServer)) {
         appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
     } else {
         m_minicapServer = nullptr;
     }
 
-    if (m_adbCommand->stopMinicapForwardPort(1313)) {
+    if (!m_adbCommand->stopMinicapForwardPort(1313)) {
         appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
     } else {
         appendLog(COLOR_LOG("Port removed: <b>" + QString::number(m_forwardPort) + "</b>", LogColor::GREEN));
@@ -182,7 +183,7 @@ void MinicapWrapper::onMinicapServerReadyReadStandardError() {
 
 void MinicapWrapper::initConnection() {
     emit appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
-    if (m_adbCommand->startMinicapForwardPort(1313)) {
+    if (!m_adbCommand->startMinicapForwardPort(1313)) {
         emit appendLog(COLOR_LOG("Error: <b>" + m_adbCommand->getErrorString() + "</b>", LogColor::RED));
         emit appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(m_forwardPort) + "</b>", LogColor::RED));
         emit stopped();
@@ -252,6 +253,7 @@ void MinicapWrapper::onMinicapServerFinished(int, QProcess::ExitStatus) {
             break;
         case ServerState::STARTED:
             emit appendLog(COLOR_LOG("Minicap server crashed.", LogColor::RED));
+            stop();
             break;
         default:
             break;

@@ -43,8 +43,8 @@ class MainWindow : public QMainWindow {
 
    private:
     Ui::MainWindow *ui;
-    AdbCommand *m_adbCommand;
-    MinicapWrapper *m_minicapServer;
+    AdbCommand *m_adbCommand = nullptr;
+    MinicapWrapper *m_minicapServer = nullptr;
 };
 
 #endif  // MAINWINDOW_H

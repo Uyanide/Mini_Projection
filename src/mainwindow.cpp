@@ -167,7 +167,6 @@ void MainWindow::onPushButtonStopClicked() {
         return;
     }
 
-    appendLog(COLOR_LOG("Stopping Minicap...", LogColor::BLUE));
     ui->pushButton_stop->setEnabled(false);
 
     m_minicapServer->stop();

@@ -15,21 +15,21 @@ class AdbCommand {
     QStringList getDevices();
 
     bool checkFiles(const QStringList& files);
-    int pushFile(const QString& localPath, const QString& remotePath);
+    bool pushFile(const QString& localPath, const QString& remotePath);
 
     QString getDeviceInfo(const QString& key);
 
-    int addExecutePermission(const QString& path);
+    bool addExecutePermission(const QString& path);
 
     QPair<int, int> getScreenSize();
 
     QProcess* startMinicapServer(const QString& ABI, const QString& SDK,
                                  QPair<int, int> screenSize, QPair<int, int> displaySize,
                                  int frameRate);
-    int stopMinicapServer(QProcess* minicapServer);
+    bool stopMinicapServer(QProcess* minicapServer);
 
-    int startMinicapForwardPort(int localPort);
-    int stopMinicapForwardPort(int localPort);
+    bool startMinicapForwardPort(int localPort);
+    bool stopMinicapForwardPort(int localPort);
 
     inline QString getDeviceName() const { return m_deviceName; }
     inline void setDeviceName(const QString& deviceName) { this->m_deviceName = deviceName; }
