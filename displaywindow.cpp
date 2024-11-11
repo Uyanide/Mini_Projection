@@ -32,7 +32,7 @@ bool DisplayWindow::showFrame(const QByteArray &frame) {
     if (!frame.isEmpty()) {
         if (screenImage.loadFromData(frame)) {
             QPixmap pixmap = QPixmap::fromImage(screenImage);
-            pixmap.setDevicePixelRatio(1.0);
+            pixmap.setDevicePixelRatio(GlobalConfig::DPR);
             pixmap = pixmap.scaled(ui->label_screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
             ui->label_screen->setPixmap(pixmap);
             return true;

@@ -8,6 +8,7 @@
 #include <QString>
 #include <QTimer>
 
+#include "globalconfig.h"
 #include "ui_displaywindow.h"
 
 namespace Ui {
