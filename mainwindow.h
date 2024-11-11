@@ -44,13 +44,12 @@ class MainWindow : public QMainWindow {
     void applyQSS();
     void initUI();
     void initSlots();
-    // QString getDeviceInfo(const QString &key);
-    // bool checkMinicapFiles();
+
+    void initCheck();
+
     int pushMinicapFiles(const QString &ABI, const QString &SDK);
-    // int addExecutePermission();
-    // QPair<int, int> adbGetScreenSize();
-    int startMinicapServer();
-    int initConnection();
+    bool startMinicapServer();
+    void initConnection();
     void initWindow();
 
     void setEnableInputFields(bool enable);

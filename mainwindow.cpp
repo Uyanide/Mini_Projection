@@ -19,6 +19,8 @@ MainWindow::MainWindow(QWidget* parent)
     applyQSS();
     initUI();
     initSlots();
+
+    initCheck();
 }
 
 MainWindow::~MainWindow() {
@@ -75,6 +77,28 @@ void MainWindow::initSlots() {
     connect(ui->pushButton_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonStopClicked);
 }
 
+void MainWindow::initCheck() {
+    appendLog(COLOR_LOG("checking ADB...", LogColor::GRAY));
+    if (!adbCommand->testValidity()) {
+        appendLog(COLOR_LOG("ADB invalid, please set a valid path.", LogColor::RED));
+        return;
+    }
+    QString output = adbCommand->getStandardOutput();
+    if (output.contains("Android Debug Bridge")) {
+        appendLog(COLOR_LOG("ADB: <b>" + output + "</b>", LogColor::GRAY));
+        appendLog(COLOR_LOG("ADB OK.", LogColor::GREEN));
+    } else {
+        appendLog(COLOR_LOG("ADB invalid, please set a valid path.", LogColor::RED));
+        return;
+    }
+    appendLog(COLOR_LOG("searching for available devices...", LogColor::GRAY));
+    onPushButtonDeviceClicked();
+    if (ui->comboBox_device->count() <= 0) {
+        return;
+    }
+    appendLog(COLOR_LOG("Good to go!", LogColor::GREEN));
+}
+
 void MainWindow::onPushButtonAdbClicked() {
     QString adbPath = QFileDialog::getOpenFileName(this, tr("Select adb path"), QDir::homePath(), tr("adb(*.exe)"));
     if (!adbPath.isEmpty()) {
@@ -88,6 +112,7 @@ void MainWindow::onPushButtonDeviceClicked() {
     ui->comboBox_device->clear();
     ui->comboBox_device->setCurrentIndex(-1);
 
+    adbCommand->setDeviceName("");
     QStringList devices = adbCommand->getDevices();
     if (devices.empty()) {
         appendLog(COLOR_LOG("No devices found...", LogColor::RED));
@@ -99,9 +124,6 @@ void MainWindow::onPushButtonDeviceClicked() {
         return;
     }
 
-    if (adbCommand) {
-        adbCommand->setDeviceName("");
-    }
     int cnt = 0;
     for (const QString& device : devices) {
         ui->comboBox_device->addItem(device);
@@ -175,7 +197,7 @@ void MainWindow::onPushButtonStartClicked() {
 
         appendLog(COLOR_LOG("Launching Minicap server...", LogColor::GRAY));
 
-        if (startMinicapServer()) {
+        if (!startMinicapServer()) {
             throw std::runtime_error("Error on starting Minicap server.");
         }
     } catch (const std::exception& e) {
@@ -201,10 +223,10 @@ int MainWindow::pushMinicapFiles(const QString& ABI, const QString& SDK) {
     return 0;
 }
 
-int MainWindow::startMinicapServer() {
+bool MainWindow::startMinicapServer() {
     if (serverState != ServerState::PREPARING) {
         appendLog(COLOR_LOG("Minicap server is already running...", LogColor::RED));
-        return 1;
+        return false;
     }
 
     serverState = ServerState::STARTING;
@@ -212,7 +234,7 @@ int MainWindow::startMinicapServer() {
     QPair<int, int> screenSize = adbCommand->getScreenSize();
     if (screenSize.first == 0 || screenSize.second == 0) {
         appendLog(COLOR_LOG("Error on getting screen size: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
-        return 1;
+        return false;
     }
     double scale = ui->lineEdit_scale->text().toDouble();
     int displayWidth = screenSize.first * scale;
@@ -225,37 +247,35 @@ int MainWindow::startMinicapServer() {
     minicapServer = adbCommand->startMinicapServer(abi, sdk, screenSize, {displayWidth, displayHeight}, frameRate);
     if (!minicapServer) {
         appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
-        return 1;
+        return false;
     }
     connect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
     connect(minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
 
-    return 0;
+    return true;
 }
 
 void MainWindow::onMinicapServerReadyReadStandardError() {
     QString output = minicapServer->readAllStandardError();
-    appendLog(COLOR_LOG("Minicap: <b>" + output + "</b>", LogColor::GRAY));
+    // appendLog(COLOR_LOG("Minicap: <b>" + output + "</b>", LogColor::GRAY));
     if (serverState == ServerState::STARTING) {
         if (output.contains("Publishing virtual display")) {
             serverState = ServerState::STARTED;
-            appendLog(COLOR_LOG("Minicap server started...", LogColor::GREEN));
-            // disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
-            if (!initConnection()) {
-                initWindow();
-            }
+            appendLog(COLOR_LOG("Minicap server started.", LogColor::GREEN));
+            disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+            initConnection();
         }
     }
 }
 
-int MainWindow::initConnection() {
+void MainWindow::initConnection() {
     appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
     this->forwardPort = ui->lineEdit_port->text().toUShort();
     if (adbCommand->startMinicapForwardPort(1313)) {
         appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
         appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
         onPushButtonStopClicked();
-        return -1;
+        return;
     } else {
         appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
     }
@@ -266,8 +286,8 @@ int MainWindow::initConnection() {
         connect(pSocket, &MinicapSocket::frameReceived, this, &MainWindow::onSocketFrameReceived, Qt::QueuedConnection);
         connect(pSocket, &MinicapSocket::errorOccurred, this, &MainWindow::onSocketOnError);
         pSocket->start();
+        appendLog(COLOR_LOG("Waiting for socket connection...", LogColor::GRAY));
     }
-    return 0;
 }
 
 void MainWindow::initWindow() {
@@ -281,6 +301,7 @@ void MainWindow::initWindow() {
 void MainWindow::onSocketConnected() {
     appendLog(COLOR_LOG("Connected to Minicap server.", LogColor::GREEN));
     ui->pushButton_stop->setEnabled(true);
+    initWindow();
 }
 
 void MainWindow::onSocketFrameReceived(QByteArray frame) {
@@ -338,7 +359,7 @@ void MainWindow::onPushButtonStopClicked() {
         return;
     }
 
-    appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
+    appendLog(COLOR_LOG("Stopping Minicap...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
     ui->pushButton_stop->setEnabled(false);
 
@@ -375,7 +396,7 @@ QString MainWindow::COLOR_LOG(const QString& text, LogColor color) {
     static const auto getColor = [](LogColor color) -> QString {
         switch (color) {
             case LogColor::RED:
-                return "#c02020";
+                return "#f04040";
             case LogColor::GREEN:
                 return "#20c020";
             case LogColor::BLUE:
@@ -396,7 +417,7 @@ void MainWindow::appendLog(const QString& text) {
 
     if (ui->textEdit_log->document()->blockCount() > MAX_LOG_LINES) {
         ui->textEdit_log->clear();
-        ui->textEdit_log->append(COLOR_LOG("Reached maximum log lines, cleared...", LogColor::RED));
+        ui->textEdit_log->append(COLOR_LOG("<b>Reached maximum log lines, cleared...</b>", LogColor::RED));
     }
 
     ui->textEdit_log->append("- " + text);

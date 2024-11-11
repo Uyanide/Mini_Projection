@@ -36,6 +36,20 @@ QStringList AdbCommand::getDevices() {
     return devices;
 }
 
+bool AdbCommand::testValidity() {
+    QProcess process;
+    process.start(adbPath, QStringList() << "version");
+    if (!process.waitForStarted()) {
+        return false;
+    }
+    process.waitForFinished();
+    if (process.exitCode() != 0) {
+        return false;
+    }
+    standardOutput = process.readAllStandardOutput();
+    return true;
+}
+
 bool AdbCommand::checkFiles(const QStringList &files) {
     QStringList arguments;
     arguments << "shell" << "ls";
@@ -174,11 +188,12 @@ int AdbCommand::executeCommand(const QStringList &arguments, bool waitForFinishe
     }
 
     process.waitForFinished();
+
+    errorString = process.readAllStandardError().trimmed();
+    standardOutput = process.readAllStandardOutput();
     if (process.exitCode()) {
-        errorString = process.readAllStandardError().trimmed();
         return process.exitCode();
     }
 
-    standardOutput = process.readAllStandardOutput();
     return 0;
 }

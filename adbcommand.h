@@ -12,6 +12,8 @@ class AdbCommand {
     AdbCommand() = default;
     AdbCommand(const QString& adbPath);
 
+    bool testValidity();
+
     QStringList getDevices();
 
     bool checkFiles(const QStringList& files);
@@ -38,6 +40,7 @@ class AdbCommand {
     inline void setAdbPath(const QString& adbPath) { this->adbPath = adbPath; }
 
     inline QString getErrorString() const { return errorString; }
+    inline QString getStandardOutput() const { return standardOutput; }
 
    private:
     int executeCommand(const QStringList& arguments, bool waitForFinished = true);

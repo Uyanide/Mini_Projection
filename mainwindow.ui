@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>800</width>
-    <height>800</height>
+    <height>600</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -73,7 +73,7 @@
             </size>
            </property>
            <property name="text">
-            <string>C:/Users/cyani/AppData/Local/Android/Sdk/platform-tools/adb.exe</string>
+            <string>adb</string>
            </property>
            <property name="readOnly">
             <bool>true</bool>
@@ -164,7 +164,16 @@
             </size>
            </property>
            <property name="text">
-            <string>…</string>
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset theme="QIcon::ThemeIcon::ViewRefresh"/>
+           </property>
+           <property name="iconSize">
+            <size>
+             <width>15</width>
+             <height>15</height>
+            </size>
            </property>
           </widget>
          </item>
