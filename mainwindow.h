@@ -84,7 +84,6 @@ class MainWindow : public QMainWindow {
     ServerState serverState = ServerState::IDLE;
 
     MinicapSocket *pSocket = nullptr;
-    QImage screenImage;
 
     DisplayWindow *displayWindow = nullptr;
 

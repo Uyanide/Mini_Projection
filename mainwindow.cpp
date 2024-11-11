@@ -272,7 +272,7 @@ int MainWindow::initConnection() {
 
 void MainWindow::initWindow() {
     if (!displayWindow) {
-        displayWindow = new DisplayWindow(this);
+        displayWindow = new DisplayWindow(ui->comboBox_device->currentText(), this);
         displayWindow->show();
         connect(displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonStopClicked);
     }
@@ -295,14 +295,8 @@ void MainWindow::onSocketFrameReceived(QByteArray frame) {
             isProcessingFrame = false;
             return;
         }
-        QLabel* screen = displayWindow->getLabelScreen();
-        if (screenImage.loadFromData(frame)) {
-            QPixmap pixmap = QPixmap::fromImage(screenImage);
-            pixmap.setDevicePixelRatio(GlobalConfig::DPR);
-            pixmap = pixmap.scaled(screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            screen->setPixmap(pixmap);
-        } else {
-            appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
+        if (!displayWindow->showFrame(frame)) {
+            appendLog(COLOR_LOG("Error on loading frame.", LogColor::RED));
         }
         isProcessingFrame = false;
     });
