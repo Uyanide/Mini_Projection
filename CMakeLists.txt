@@ -27,7 +27,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         resources.qrc
         inc/minicapsocket.h src/minicapsocket.cpp
-        inc/displaywindow.h src/displaywindow.cpp ui/displaywindow.ui
+        inc/displaywindow.h src/displaywindow.cpp
         inc/adbcommand.h src/adbcommand.cpp
         inc/globalconfig.h src/globalconfig.cpp
     )

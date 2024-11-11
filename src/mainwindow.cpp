@@ -33,8 +33,8 @@ MainWindow::~MainWindow() {
             m_pSocketThread->deleteLater();
         }
         if (m_displayWindow) {
-            // displayWindow->deleteLater();
-            // displayWindow is managed by Qt
+            m_displayWindow->close();
+            m_displayWindow->deleteLater();
         }
         if (m_minicapServer) {
             m_minicapServer->kill();
@@ -161,8 +161,8 @@ void MainWindow::onPushButtonStartClicked() {
 
         // if (!checkMinicapFiles()) {
         if (!m_adbCommand->checkFiles(QStringList()
-                                    << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
-                                    << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap.so")) {
+                                      << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
+                                      << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap.so")) {
             appendLog(COLOR_LOG("Minicap files not found. Pushing files...", LogColor::GRAY));
             appendLog(COLOR_LOG("Getting device information...", LogColor::GRAY));
 
@@ -292,7 +292,7 @@ void MainWindow::initConnection() {
 
 void MainWindow::initWindow() {
     if (!m_displayWindow) {
-        m_displayWindow = new DisplayWindow(ui->comboBox_device->currentText(), this);
+        m_displayWindow = new DisplayWindow(ui->comboBox_device->currentText(), this->palette().color(QPalette::Window));
         m_displayWindow->show();
         connect(m_displayWindow, &DisplayWindow::closed, this, &MainWindow::onPushButtonStopClicked);
     }

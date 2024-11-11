@@ -112,7 +112,7 @@
          <item>
           <widget class="QLabel" name="label_device">
            <property name="text">
-            <string>Device name:</string>
+            <string>Device:</string>
            </property>
           </widget>
          </item>
@@ -256,7 +256,7 @@
          <item>
           <widget class="QLabel" name="label_scale">
            <property name="text">
-            <string>Scale:</string>
+            <string>Display Scale:</string>
            </property>
           </widget>
          </item>
