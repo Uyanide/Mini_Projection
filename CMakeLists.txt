@@ -26,6 +26,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         resources.qrc
         minicapsocket.h minicapsocket.cpp
         displaywindow.h displaywindow.cpp displaywindow.ui
+        adbcommand.h adbcommand.cpp
+        globalconfig.h globalconfig.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET ark_minigame APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR

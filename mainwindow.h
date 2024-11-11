@@ -2,10 +2,13 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QPair>
 #include <QProcess>
 #include <QString>
 
+#include "adbcommand.h"
 #include "displaywindow.h"
+#include "globalconfig.h"
 #include "minicapsocket.h"
 
 QT_BEGIN_NAMESPACE
@@ -41,10 +44,11 @@ class MainWindow : public QMainWindow {
     void applyQSS();
     void initUI();
     void initSlots();
-    QString getDeviceInfo(const QString &key);
-    bool checkMinicapFiles();
+    // QString getDeviceInfo(const QString &key);
+    // bool checkMinicapFiles();
     int pushMinicapFiles(const QString &ABI, const QString &SDK);
-    int addExecutePermission();
+    // int addExecutePermission();
+    // QPair<int, int> adbGetScreenSize();
     int startMinicapServer();
     void initConnection();
     void initWindow();
@@ -53,6 +57,9 @@ class MainWindow : public QMainWindow {
 
    private slots:
     void onPushButtonAdbClicked();
+    void onPushButtonDeviceClicked();
+    void onComboBoxDeviceCurrentIndexChanged(int index);
+
     void onPushButtonMinicapStartClicked();
     void onPushButtonMinicapStopClicked();
 
@@ -68,11 +75,12 @@ class MainWindow : public QMainWindow {
 
    private:
     Ui::MainWindow *ui;
-    QString adbPath;
-    QString deviceName;
     quint16 forwardPort;
 
-    QProcess minicapServer = QProcess(this);
+    QString abi;
+    QString sdk;
+
+    QProcess *minicapServer = nullptr;
     ServerState serverState = ServerState::IDLE;
 
     MinicapSocket *pSocket = nullptr;
@@ -80,9 +88,7 @@ class MainWindow : public QMainWindow {
 
     DisplayWindow *displayWindow = nullptr;
 
-    static const QString MINICAP_PATH;
-    static const QString MINICAP_DEVICE_PATH;
-    static const QString MINICAP_SERVER_LOG;
+    AdbCommand *adbCommand;
 };
 
 #endif  // MAINWINDOW_H

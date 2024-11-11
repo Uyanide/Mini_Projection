@@ -48,6 +48,20 @@ QTextEdit {
     border-radius: 5px;
 }
 
+QComboBox {
+    font: 12pt 'Consolas';
+    background-color: #0c1127;
+    color: #dfdfdf;
+    border: 2px solid #3b52bd;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+QComboBox:disabled {
+    background-color: #1c2138;
+    color: #a0a0a0;
+}
+
 #label_img {
     border: 2px solid #3b52bd;
     border-radius: 5px;

@@ -2,20 +2,19 @@
 
 #include <QFile>
 #include <QFileDialog>
+#include <QRegularExpression>
 #include <QTimer>
+#include <QVector>
 #include <stdexcept>
 
-#include "./ui_displaywindow.h"
 #include "./ui_mainwindow.h"
-
-const QString MainWindow::MINICAP_PATH = "C:/Users/cyani/code/minicap";
-const QString MainWindow::MINICAP_DEVICE_PATH = "/data/local/tmp";
-const QString MainWindow::MINICAP_SERVER_LOG = "D:/1-TUM/C/QT/ark_minigame/minicap_server.log";
 
 MainWindow::MainWindow(QWidget* parent)
     : QMainWindow(parent),
       ui(new Ui::MainWindow) {
     ui->setupUi(this);
+
+    adbCommand = new AdbCommand();
 
     applyQSS();
     initUI();
@@ -25,6 +24,9 @@ MainWindow::MainWindow(QWidget* parent)
 MainWindow::~MainWindow() {
     if (serverState != ServerState::IDLE) {
         onPushButtonMinicapStopClicked();
+    }
+    if (adbCommand) {
+        delete adbCommand;
     }
 
     delete ui;
@@ -38,15 +40,22 @@ void MainWindow::applyQSS() {
 }
 
 void MainWindow::initUI() {
+    ui->pushButton_minicap_start->setEnabled(false);
     ui->pushButton_minicap_stop->setEnabled(false);
+    setEnableInputFields(false);
+    ui->pushButton_adb->setEnabled(true);
+    ui->pushButton_device->setEnabled(true);
+    ui->comboBox_device->setEnabled(true);
 
-    adbPath = ui->lineEdit_adb->text();
-    deviceName = ui->lineEdit_device->text();
+    adbCommand->setAdbPath(ui->lineEdit_adb->text());
+
     forwardPort = ui->lineEdit_port->text().toUShort();
 }
 
 void MainWindow::initSlots() {
     connect(ui->pushButton_adb, &QPushButton::clicked, this, &MainWindow::onPushButtonAdbClicked);
+    connect(ui->pushButton_device, &QPushButton::clicked, this, &MainWindow::onPushButtonDeviceClicked);
+    connect(ui->comboBox_device, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onComboBoxDeviceCurrentIndexChanged);
     connect(ui->pushButton_minicap_start, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStartClicked);
     connect(ui->pushButton_minicap_stop, &QPushButton::clicked, this, &MainWindow::onPushButtonMinicapStopClicked);
 }
@@ -60,10 +69,52 @@ void MainWindow::onPushButtonAdbClicked() {
         //     ";\">ADB path set to: <b>" +
         //     adbPath + "</b></span>");
         appendLog(COLOR_LOG("ADB path set to: <b>" + adbPath + "</b>", LogColor::GREEN));
-        this->adbPath = adbPath;
+        adbCommand->setAdbPath(adbPath);
     } else {
         appendLog(COLOR_LOG("ADB path not set, please try again...", LogColor::RED));
     }
+}
+
+void MainWindow::onPushButtonDeviceClicked() {
+    QStringList devices = adbCommand->getDevices();
+    if (devices.empty()) {
+        appendLog(COLOR_LOG("No devices found...", LogColor::RED));
+        setEnableInputFields(false);
+        ui->pushButton_minicap_start->setEnabled(false);
+        ui->pushButton_adb->setEnabled(true);
+        ui->pushButton_device->setEnabled(true);
+        ui->comboBox_device->setEnabled(true);
+        return;
+    }
+
+    ui->comboBox_device->clear();
+    ui->comboBox_device->setCurrentIndex(-1);
+    if (adbCommand) {
+        adbCommand->setDeviceName("");
+    }
+    int cnt = 0;
+    for (const QString& device : devices) {
+        ui->comboBox_device->addItem(device);
+        cnt++;
+    }
+    ui->comboBox_device->setCurrentIndex(0);
+
+    appendLog(COLOR_LOG("Devices found: <b>" + QString::number(cnt) + "</b>", LogColor::GREEN));
+}
+
+void MainWindow::onComboBoxDeviceCurrentIndexChanged(int index) {
+    if (index < 0) {
+        return;
+    }
+
+    QString deviceName = ui->comboBox_device->currentText();
+    if (adbCommand) {
+        adbCommand->setDeviceName(deviceName);
+    }
+
+    appendLog(COLOR_LOG("Device selected: <b>" + deviceName + "</b>", LogColor::GREEN));
+    setEnableInputFields(true);
+    ui->pushButton_minicap_start->setEnabled(true);
 }
 
 void MainWindow::onPushButtonMinicapStartClicked() {
@@ -72,27 +123,30 @@ void MainWindow::onPushButtonMinicapStartClicked() {
         ui->pushButton_minicap_start->setEnabled(false);
         setEnableInputFields(false);
 
-        deviceName = ui->lineEdit_device->text();
-
         appendLog(COLOR_LOG("Starting Minicap...", LogColor::BLUE));
 
         // check if minicap and minicap.so already exist in device
         appendLog(COLOR_LOG("Checking local files...", LogColor::GRAY));
 
-        if (!checkMinicapFiles()) {
+        // if (!checkMinicapFiles()) {
+        if (!adbCommand->checkFiles(QStringList()
+                                    << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap"
+                                    << GlobalConfig::MINICAP_DEVICE_PATH + "/minicap.so")) {
             appendLog(COLOR_LOG("Minicap files not found. Pushing files...", LogColor::GRAY));
             appendLog(COLOR_LOG("Getting device information...", LogColor::GRAY));
 
             // get device ABI and SDK
-            QString abi = getDeviceInfo("ro.product.cpu.abi");
+            abi = adbCommand->getDeviceInfo("ro.product.cpu.abi");
             if (abi.isEmpty()) {
+                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on getting ABI.");
             } else {
                 appendLog(COLOR_LOG("Device ABI: <b>" + abi + "</b>", LogColor::GREEN));
             }
 
-            QString sdk = getDeviceInfo("ro.build.version.sdk");
+            sdk = adbCommand->getDeviceInfo("ro.build.version.sdk");
             if (sdk.isEmpty()) {
+                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on getting SDK.");
             } else {
                 appendLog(COLOR_LOG("Device SDK: <b>" + sdk + "</b>", LogColor::GREEN));
@@ -104,7 +158,8 @@ void MainWindow::onPushButtonMinicapStartClicked() {
             }
 
             // add execute permission to minicap
-            if (addExecutePermission()) {
+            if (adbCommand->addExecutePermission(GlobalConfig::MINICAP_DEVICE_PATH + "/minicap")) {
+                appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
                 throw std::runtime_error("Error on adding execute permission.");
             }
         }
@@ -123,70 +178,81 @@ void MainWindow::onPushButtonMinicapStartClicked() {
     }
 }
 
-QString MainWindow::getDeviceInfo(const QString& key) {
-    QProcess process;
-    process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "getprop" << key);
-    if (!process.waitForStarted()) {
-        appendLog(COLOR_LOG("Error on getting device info: <b>" + process.errorString() + "</b>", LogColor::RED));
-        return "";
-    }
-    process.waitForFinished();
-    if (process.exitCode() != 0) {
-        appendLog(COLOR_LOG("Error on getting device info: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
-        return "";
-    }
-    return process.readAllStandardOutput().trimmed();
-}
+// QString MainWindow::getDeviceInfo(const QString& key) {
+//     QProcess process;
+//     process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "getprop" << key);
+//     if (!process.waitForStarted()) {
+//         appendLog(COLOR_LOG("Error on getting device info: <b>" + process.errorString() + "</b>", LogColor::RED));
+//         return "";
+//     }
+//     process.waitForFinished();
+//     if (process.exitCode() != 0) {
+//         appendLog(COLOR_LOG("Error on getting device info: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
+//         return "";
+//     }
+//     return process.readAllStandardOutput().trimmed();
+// }
 
-bool MainWindow::checkMinicapFiles() {
-    for (const QString& file : {QString("/minicap"), QString("/minicap.so")}) {
-        QProcess process;
-        process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "ls" << (MINICAP_DEVICE_PATH + file));
-        if (!process.waitForStarted()) {
-            appendLog(COLOR_LOG("Error on checking file: <b>" + process.errorString() + "</b>", LogColor::RED));
-            return false;
-        }
-        process.waitForFinished();
-        if (process.exitCode() != 0) {
-            return false;
-        }
-    }
-    return true;
-}
+// bool MainWindow::checkMinicapFiles() {
+//     for (const QString& file : {QString("/minicap"), QString("/minicap.so")}) {
+//         QProcess process;
+//         process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "ls" << (MINICAP_DEVICE_PATH + file));
+//         if (!process.waitForStarted()) {
+//             appendLog(COLOR_LOG("Error on checking file: <b>" + process.errorString() + "</b>", LogColor::RED));
+//             return false;
+//         }
+//         process.waitForFinished();
+//         if (process.exitCode() != 0) {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
 
 int MainWindow::pushMinicapFiles(const QString& ABI, const QString& SDK) {
-    for (const QString& file : {
-             "libs/" + ABI + "/minicap",
-             "jni/minicap-shared/aosp/libs/android-" + SDK + "/" + ABI + "/minicap.so"}) {
-        QProcess process;
-        process.start(adbPath, QStringList() << "-s" << deviceName << "push" << (MINICAP_PATH + "/" + file) << MINICAP_DEVICE_PATH);
-        if (!process.waitForStarted()) {
-            appendLog(COLOR_LOG("Error on pushing file: <b>" + process.errorString() + "</b>", LogColor::RED));
-            return process.exitCode();
-        }
-        process.waitForFinished();
-        if (process.exitCode() != 0) {
-            appendLog(COLOR_LOG("Error on pushing file: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
-            return process.exitCode();
+    // for (const QString& file : {
+    //          "libs/" + ABI + "/minicap",
+    //          "jni/minicap-shared/aosp/libs/android-" + SDK + "/" + ABI + "/minicap.so"}) {
+    //     QProcess process;
+    //     process.start(adbPath, QStringList() << "-s" << deviceName << "push" << (MINICAP_PATH + "/" + file) << MINICAP_DEVICE_PATH);
+    //     if (!process.waitForStarted()) {
+    //         appendLog(COLOR_LOG("Error on pushing file: <b>" + process.errorString() + "</b>", LogColor::RED));
+    //         return process.exitCode();
+    //     }
+    //     process.waitForFinished();
+    //     if (process.exitCode() != 0) {
+    //         appendLog(COLOR_LOG("Error on pushing file: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
+    //         return process.exitCode();
+    //     }
+    // }
+    // return 0;
+    for (const QString& file :
+         (QStringList()
+          << "libs/" + ABI + "/minicap"
+          << "jni/minicap-shared/aosp/libs/android-" + SDK + "/" + ABI + "/minicap.so")) {
+        int ret = adbCommand->pushFile(GlobalConfig::MINICAP_PATH + "/" + file, GlobalConfig::MINICAP_DEVICE_PATH);
+        if (ret != 0) {
+            appendLog(COLOR_LOG("Error: " + adbCommand->getErrorString() + "</b>", LogColor::RED));
+            return ret;
         }
     }
     return 0;
 }
 
-int MainWindow::addExecutePermission() {
-    QProcess process;
-    process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "chmod" << "+x" << MINICAP_DEVICE_PATH + "/minicap");
-    if (!process.waitForStarted()) {
-        appendLog(COLOR_LOG("Error on adding execute permission: <b>" + process.errorString() + "</b>", LogColor::RED));
-        return process.exitCode();
-    }
-    process.waitForFinished();
-    if (process.exitCode() != 0) {
-        appendLog(COLOR_LOG("Error on adding execute permission: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
-        return process.exitCode();
-    }
-    return 0;
-}
+// int MainWindow::addExecutePermission() {
+//     QProcess process;
+//     process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "chmod" << "+x" << MINICAP_DEVICE_PATH + "/minicap");
+//     if (!process.waitForStarted()) {
+//         appendLog(COLOR_LOG("Error on adding execute permission: <b>" + process.errorString() + "</b>", LogColor::RED));
+//         return process.exitCode();
+//     }
+//     process.waitForFinished();
+//     if (process.exitCode() != 0) {
+//         appendLog(COLOR_LOG("Error on adding execute permission: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
+//         return process.exitCode();
+//     }
+//     return 0;
+// }
 
 int MainWindow::startMinicapServer() {
     if (serverState != ServerState::PREPARING) {
@@ -196,34 +262,61 @@ int MainWindow::startMinicapServer() {
 
     serverState = ServerState::STARTING;
 
-    int displayWidth = ui->lineEdit_dis_w->text().toInt();
-    int displayHeight = ui->lineEdit_dis_h->text().toInt();
-    int diviceWidth = ui->lineEdit_phy_w->text().toInt();
-    int diviceHeight = ui->lineEdit_phy_h->text().toInt();
-    minicapServer.start(adbPath,
-                        QStringList() << "-s" << deviceName
-                                      << "shell"
-                                      << "LD_LIBRARY_PATH=" + MINICAP_DEVICE_PATH + " " + MINICAP_DEVICE_PATH + "/minicap"
-                                      << "-P"
-                                      << QString("%1x%2@%3x%4/0")
-                                             .arg(diviceWidth)
-                                             .arg(diviceHeight)
-                                             .arg(displayWidth)
-                                             .arg(displayHeight)
-                                      << "-S");
-    if (!minicapServer.waitForStarted()) {
-        appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer.errorString() + "</b>", LogColor::RED));
+    // int displayWidth = ui->lineEdit_scale->text().toInt();
+    // int displayHeight = ui->lineEdit_dis_h->text().toInt();
+    // int diviceWidth = ui->lineEdit_phy_w->text().toInt();
+    // int diviceHeight = ui->lineEdit_phy_h->text().toInt();
+    QPair<int, int> screenSize = adbCommand->getScreenSize();
+    if (screenSize.first == 0 || screenSize.second == 0) {
+        appendLog(COLOR_LOG("Error on getting screen size: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
         return 1;
     }
-
-    connect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
-    connect(&minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
+    double scale = ui->lineEdit_scale->text().toDouble();
+    int displayWidth = screenSize.first * scale;
+    int displayHeight = screenSize.second * scale;
+    int diviceWidth = screenSize.first;
+    int diviceHeight = screenSize.second;
+    appendLog(COLOR_LOG("Screen size: <b>" + QString::number(diviceWidth) + "x" + QString::number(diviceHeight) + "</b>", LogColor::GRAY));
+    appendLog(COLOR_LOG("Display size: <b>" + QString::number(displayWidth) + "x" + QString::number(displayHeight) + "</b>", LogColor::GRAY));
+    minicapServer = adbCommand->startMinicapServer(abi, sdk, screenSize, {displayWidth, displayHeight});
+    if (!minicapServer) {
+        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+        return 1;
+    }
+    connect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+    connect(minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
 
     return 0;
 }
 
+// QPair<int, int> MainWindow::adbGetScreenSize() {
+//     QProcess process;
+//     process.start(adbPath, QStringList() << "-s" << deviceName << "shell" << "dumpsys window displays | grep init=");
+//     if (!process.waitForStarted()) {
+//         appendLog(COLOR_LOG("Error on getting screen size: <b>" + process.errorString() + "</b>", LogColor::RED));
+//         return {0, 0};
+//     }
+//     process.waitForFinished();
+//     if (process.exitCode() != 0) {
+//         appendLog(COLOR_LOG("Error on getting screen size: <b>" + process.readAllStandardError().trimmed() + "</b>", LogColor::RED));
+//         return {0, 0};
+//     }
+//     QString output = process.readAllStandardOutput();
+
+//     static const QRegularExpression regex("cur=(\\d+)x(\\d+)");
+//     QRegularExpressionMatch match = regex.match(output);
+//     if (match.hasMatch()) {
+//         int width = match.captured(1).toInt();
+//         int height = match.captured(2).toInt();
+//         return {width, height};
+//     } else {
+//         appendLog(COLOR_LOG("Error: could not find screen size in output.", LogColor::RED));
+//         return {0, 0};
+//     }
+// }
+
 void MainWindow::onMinicapServerReadyReadStandardError() {
-    QString output = minicapServer.readAllStandardError();
+    QString output = minicapServer->readAllStandardError();
     // QFile file(MINICAP_SERVER_LOG);
     // if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
     //     file.write(output.toUtf8());
@@ -234,7 +327,7 @@ void MainWindow::onMinicapServerReadyReadStandardError() {
         if (output.contains("Publishing virtual display")) {
             serverState = ServerState::STARTED;
             appendLog(COLOR_LOG("Minicap server started...", LogColor::GREEN));
-            disconnect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+            // disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
             initConnection();
             initWindow();
         }
@@ -244,7 +337,15 @@ void MainWindow::onMinicapServerReadyReadStandardError() {
 void MainWindow::initConnection() {
     appendLog(COLOR_LOG("Forwarding port...", LogColor::GRAY));
     this->forwardPort = ui->lineEdit_port->text().toUShort();
-    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "tcp:" + QString::number(forwardPort) << "localabstract:minicap")) {
+    // if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "tcp:" + QString::number(forwardPort) << "localabstract:minicap")) {
+    //     appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
+    //     onPushButtonMinicapStopClicked();
+    //     return;
+    // } else {
+    //     appendLog(COLOR_LOG("Port forwarded: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
+    // }
+    if (adbCommand->startMinicapForwardPort(1313)) {
+        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
         appendLog(COLOR_LOG("Error on forwarding port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
         onPushButtonMinicapStopClicked();
         return;
@@ -276,11 +377,12 @@ void MainWindow::onSocketConnected() {
 
 void MainWindow::onSocketFrameReceived(QByteArray frame) {
     static const qreal DPR = devicePixelRatio();
+    QLabel* screen = displayWindow->getLabelScreen();
     if (screenImage.loadFromData(frame)) {
         QPixmap pixmap = QPixmap::fromImage(screenImage);
         pixmap.setDevicePixelRatio(DPR);
-        pixmap = pixmap.scaled(displayWindow->ui->label_screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        displayWindow->ui->label_screen->setPixmap(pixmap);
+        pixmap = pixmap.scaled(screen->size() * pixmap.devicePixelRatio(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        screen->setPixmap(pixmap);
     } else {
         appendLog(COLOR_LOG("Error on loading image.", LogColor::RED));
     }
@@ -294,14 +396,15 @@ void MainWindow::onSocketOnError(QString error) {
 void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
     switch (serverState) {
         case ServerState::STARTING:
-            appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer.errorString() + "</b>", LogColor::RED));
-            disconnect(&minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
+            appendLog(COLOR_LOG("Error on starting Minicap server: <b>" + minicapServer->errorString() + "</b>", LogColor::RED));
+            disconnect(minicapServer, &QProcess::readyReadStandardError, this, &MainWindow::onMinicapServerReadyReadStandardError);
             break;
         case ServerState::STOPPING:
             appendLog(COLOR_LOG("Minicap server stopped.", LogColor::GREEN));
             break;
         case ServerState::STARTED:
             appendLog(COLOR_LOG("Minicap server crashed.", LogColor::RED));
+            onPushButtonMinicapStopClicked();
             break;
         default:
             break;
@@ -313,7 +416,6 @@ void MainWindow::onMinicapServerFinished(int, QProcess::ExitStatus) {
     }
     ui->pushButton_minicap_start->setEnabled(true);
     setEnableInputFields(true);
-    disconnect(&minicapServer, &QProcess::finished, this, &MainWindow::onMinicapServerFinished);
     serverState = ServerState::IDLE;
 }
 
@@ -325,21 +427,38 @@ void MainWindow::onPushButtonMinicapStopClicked() {
     appendLog(COLOR_LOG("Stopping Minicap server...", LogColor::BLUE));
     serverState = ServerState::STOPPING;
     ui->pushButton_minicap_stop->setEnabled(false);
-    displayWindow->ui->label_screen->clear();
+
+    if (displayWindow) {
+        delete displayWindow;
+        displayWindow = nullptr;
+    }
+
     if (pSocket) {
         pSocket->stop();
         delete pSocket;
         pSocket = nullptr;
     }
 
-    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "shell" << "pkill" << "minicap")) {
-        appendLog(COLOR_LOG("Error on stopping Minicap server: <b>" + QString::number(minicapServer.error()) + "</b>", LogColor::RED));
-        serverState = ServerState::IDLE;
-        return;
+    // if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "shell" << "pkill" << "minicap")) {
+    //     appendLog(COLOR_LOG("Error on stopping Minicap server: <b>" + QString::number(minicapServer.error()) + "</b>", LogColor::RED));
+    //     serverState = ServerState::IDLE;
+    //     return;
+    // }
+
+    // if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "--remove" << "tcp:" + QString::number(forwardPort))) {
+    //     appendLog(COLOR_LOG("Error on removing port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
+    // } else {
+    //     appendLog(COLOR_LOG("Port removed: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
+    // }
+
+    if (adbCommand->stopMinicapServer(minicapServer)) {
+        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
+    } else {
+        minicapServer = nullptr;
     }
 
-    if (QProcess::execute(adbPath, QStringList() << "-s" << deviceName << "forward" << "--remove" << "tcp:" + QString::number(forwardPort))) {
-        appendLog(COLOR_LOG("Error on removing port: <b>" + QString::number(forwardPort) + "</b>", LogColor::RED));
+    if (adbCommand->stopMinicapForwardPort(1313)) {
+        appendLog(COLOR_LOG("Error: <b>" + adbCommand->getErrorString() + "</b>", LogColor::RED));
     } else {
         appendLog(COLOR_LOG("Port removed: <b>" + QString::number(forwardPort) + "</b>", LogColor::GREEN));
     }
@@ -383,10 +502,8 @@ void MainWindow::appendLog(const QString& text) {
 void MainWindow::setEnableInputFields(bool enable) {
     ui->lineEdit_adb->setEnabled(enable);
     ui->pushButton_adb->setEnabled(enable);
-    ui->lineEdit_device->setEnabled(enable);
+    ui->pushButton_device->setEnabled(enable);
+    ui->comboBox_device->setEnabled(enable);
     ui->lineEdit_port->setEnabled(enable);
-    ui->lineEdit_phy_w->setEnabled(enable);
-    ui->lineEdit_phy_h->setEnabled(enable);
-    ui->lineEdit_dis_w->setEnabled(enable);
-    ui->lineEdit_dis_h->setEnabled(enable);
+    ui->lineEdit_scale->setEnabled(enable);
 }

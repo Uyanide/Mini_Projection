@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 
+#include "ui_displaywindow.h"
+
 namespace Ui {
 class DisplayWindow;
 }
@@ -10,11 +12,11 @@ class DisplayWindow;
 class DisplayWindow : public QMainWindow {
     Q_OBJECT
 
-    friend class MainWindow;
-
    public:
     explicit DisplayWindow(QWidget *parent = nullptr);
     ~DisplayWindow();
+
+    QLabel *getLabelScreen() const { return ui->label_screen; }
 
    protected:
     void closeEvent(QCloseEvent *event) override;
