@@ -30,6 +30,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         inc/displaywindow.h src/displaywindow.cpp
         inc/adbcommand.h src/adbcommand.cpp
         inc/globalconfig.h src/globalconfig.cpp
+        inc/minicapwrapper.h src/minicapwrapper.cpp
     )
 
 # Define target properties for Android with Qt 6 as:

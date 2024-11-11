@@ -16,3 +16,23 @@ void GlobalConfig::loadConfig(const QString& configFilePath) {
     MINICAP_DEVICE_PATH = settings.value(QString("Paths/MINICAP_DEVICE_PATH")).toString();
     MINICAP_SERVER_LOG = settings.value(QString("Paths/MINICAP_SERVER_LOG")).toString();
 }
+
+QString COLOR_LOG(const QString& text, LogColor color) {
+    static const auto getColor = [](LogColor color) -> QString {
+        switch (color) {
+            case LogColor::RED:
+                return "#f04040";
+            case LogColor::GREEN:
+                return "#20c020";
+            case LogColor::BLUE:
+                return "#8080f0";
+            case LogColor::YELLOW:
+                return "#c0c020";
+            case LogColor::GRAY:
+                return "#a0a0a0";
+            default:
+                return "";
+        }
+    };
+    return "<span style=\"color: " + QString(getColor(color)) + ";\">" + text + "</span>";
+}

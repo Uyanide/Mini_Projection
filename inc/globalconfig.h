@@ -17,4 +17,14 @@ class GlobalConfig {
     static void loadConfig(const QString& configFilePath);
 };
 
+enum LogColor {
+    GRAY = 0,
+    YELLOW,
+    RED,
+    GREEN,
+    BLUE,
+};
+
+QString COLOR_LOG(const QString& text, LogColor color);
+
 #endif  // GLOBALCONFIG_H
