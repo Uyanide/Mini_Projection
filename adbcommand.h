@@ -2,8 +2,8 @@
 #define ADBCOMMAND_H
 
 #include <QPair>
-#include <QStringList>
 #include <QProcess>
+#include <QStringList>
 
 #include "globalconfig.h"
 
@@ -24,7 +24,8 @@ class AdbCommand {
     QPair<int, int> getScreenSize();
 
     QProcess* startMinicapServer(const QString& ABI, const QString& SDK,
-                                 QPair<int, int> screenSize, QPair<int, int> displaySize);
+                                 QPair<int, int> screenSize, QPair<int, int> displaySize,
+                                 int frameRate);
     int stopMinicapServer(QProcess* minicapServer);
 
     int startMinicapForwardPort(int localPort);

@@ -50,7 +50,7 @@ class MainWindow : public QMainWindow {
     // int addExecutePermission();
     // QPair<int, int> adbGetScreenSize();
     int startMinicapServer();
-    void initConnection();
+    int initConnection();
     void initWindow();
 
     void setEnableInputFields(bool enable);

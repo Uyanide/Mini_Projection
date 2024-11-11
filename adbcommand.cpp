@@ -87,7 +87,7 @@ QPair<int, int> AdbCommand::getScreenSize() {
     }
 }
 
-QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK, QPair<int, int> screenSize, QPair<int, int> displaySize) {
+QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK, QPair<int, int> screenSize, QPair<int, int> displaySize, int frameRate) {
     standardOutput.clear();
     errorString.clear();
 
@@ -112,7 +112,9 @@ QProcess *AdbCommand::startMinicapServer(const QString &ABI, const QString &SDK,
                                        .arg(screenSize.second)
                                        .arg(displaySize.first)
                                        .arg(displaySize.second)
-                                << "-S");
+                                << "-S"
+                                << "-r"
+                                << QString::number(frameRate));
     if (!process->waitForStarted()) {
         errorString = process->errorString();
         delete process;
